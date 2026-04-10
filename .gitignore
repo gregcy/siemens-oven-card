@@ -1,0 +1,5 @@
+node_modules/
+dist/siemens-oven-card.js
+dist-tsc/
+.DS_Store
+.superpowers/

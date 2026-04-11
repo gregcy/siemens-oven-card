@@ -23,19 +23,19 @@ export const PROGRAM_ICON_MAP: Record<string, string> = {
   'Cooking.Oven.Program.HeatingMode.GrillSmallArea': 'grill-small.svg',
 };
 
-// Human-readable label shown below each program icon
+// Human-readable label shown beside each program icon — matches oven display text
 export const PROGRAM_LABEL_MAP: Record<string, string> = {
-  'Cooking.Oven.Program.HeatingMode.HotAir': 'Hot Air',
-  'Cooking.Oven.Program.HeatingMode.TopBottomHeating': 'Top / Bottom',
-  'Cooking.Oven.Program.HeatingMode.HotAirEco': 'Hot Air Eco',
-  'Cooking.Oven.Program.HeatingMode.TopBottomHeatingEco': 'Top / Bottom Eco',
-  'Cooking.Oven.Program.HeatingMode.HotAirGrilling': 'Hot Air Grill',
-  'Cooking.Oven.Program.HeatingMode.PizzaSetting': 'Pizza',
-  'Cooking.Oven.Program.HeatingMode.SlowCook': 'Slow Cook',
-  'Cooking.Oven.Program.HeatingMode.BottomHeating': 'Bottom Heat',
-  'Cooking.Oven.Program.HeatingMode.KeepWarm': 'Keep Warm',
-  'Cooking.Oven.Program.HeatingMode.PreheatOvenware': 'Preheat Ovenware',
-  'Cooking.Oven.Program.HeatingMode.FrozenHeatupSpecial': 'Frozen',
-  'Cooking.Oven.Program.HeatingMode.GrillLargeArea': 'Grill Large Area',
-  'Cooking.Oven.Program.HeatingMode.GrillSmallArea': 'Grill Small Area',
+  'Cooking.Oven.Program.HeatingMode.HotAir': '4D Hot air',
+  'Cooking.Oven.Program.HeatingMode.TopBottomHeating': 'Top and bottom heat',
+  'Cooking.Oven.Program.HeatingMode.HotAirEco': 'Hot air eco',
+  'Cooking.Oven.Program.HeatingMode.TopBottomHeatingEco': 'Top and bottom heat eco',
+  'Cooking.Oven.Program.HeatingMode.HotAirGrilling': 'Hot air grilling',
+  'Cooking.Oven.Program.HeatingMode.PizzaSetting': 'Pizza setting',
+  'Cooking.Oven.Program.HeatingMode.SlowCook': 'Low-temperature cooking',
+  'Cooking.Oven.Program.HeatingMode.BottomHeating': 'Bottom heat',
+  'Cooking.Oven.Program.HeatingMode.KeepWarm': 'Keep warm',
+  'Cooking.Oven.Program.HeatingMode.PreheatOvenware': 'Plate warming',
+  'Cooking.Oven.Program.HeatingMode.FrozenHeatupSpecial': 'coolStart function',
+  'Cooking.Oven.Program.HeatingMode.GrillLargeArea': 'Grill, large area',
+  'Cooking.Oven.Program.HeatingMode.GrillSmallArea': 'Grill, small area',
 };

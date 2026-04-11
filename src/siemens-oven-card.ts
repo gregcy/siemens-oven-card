@@ -154,19 +154,50 @@ export class SiemensOvenCard extends LitElement {
     };
   }
 
+  private _renderTopBar(opState: OperationState) {
+    void this._tick; // Reference _tick so LitElement re-renders on interval
+    const timer = this._getTimerInfo(opState);
+
+    return html`
+      <div class="top-bar">
+        <div class="top-bar-left">
+          <!-- icon slots — to be added -->
+        </div>
+        <div class="top-bar-right">
+          <span class="top-timer ${timer.colorClass}">${timer.display}</span>
+          ${timer.label
+            ? html`<span class="top-timer-label">${timer.label}</span>`
+            : nothing}
+        </div>
+      </div>
+    `;
+  }
+
+  private _renderSetpoint(opState: OperationState) {
+    const isActive = opState === 'run' || opState === 'pause';
+    if (!isActive) return html`<div class="zone-setpoint"></div>`;
+
+    const setpointState = this.hass.states[this._config.setpoint_temp_entity]?.state;
+    const setpoint =
+      setpointState && setpointState !== 'unavailable' && setpointState !== 'unknown'
+        ? setpointState
+        : null;
+
+    return html`
+      <div class="zone-setpoint">
+        ${setpoint ? html`<span class="setpoint-value">${setpoint}°C</span>` : nothing}
+      </div>
+    `;
+  }
+
   private _renderDetails(opState: OperationState) {
     if (!showDetailsRow(opState)) return nothing;
 
-    const setpointState = this.hass.states[this._config.setpoint_temp_entity]?.state;
     const cavityState = this.hass.states[this._config.cavity_temp_entity]?.state;
     const progress = getProgressPercent(this.hass, this._config);
     // door_entity is a binary_sensor: off=closed, on=open
     const doorState = this.hass.states[this._config.door_entity]?.state;
 
-    const setpoint =
-      setpointState && setpointState !== 'unavailable' && setpointState !== 'unknown'
-        ? setpointState
-        : null;
     const cavity =
       cavityState && cavityState !== 'unavailable' && cavityState !== 'unknown'
         ? cavityState
@@ -176,47 +207,30 @@ export class SiemensOvenCard extends LitElement {
 
     return html`
       <div class="details-row">
-        ${setpoint ? html`<span class="detail-setpoint">${setpoint}°C</span>` : nothing}
-        ${cavity ? html`<span class="detail-item">${cavity}°C</span>` : nothing}
+        ${cavity ? html`<span class="detail-item">${cavity}°C actual</span>` : nothing}
         ${progress !== null ? html`<span class="detail-item">${progress}%</span>` : nothing}
-        ${doorLabel ? html`<span class="detail-item">${doorLabel}</span>` : nothing}
+        ${doorLabel ? html`<span class="detail-item">door ${doorLabel}</span>` : nothing}
       </div>
     `;
   }
 
   private _renderProgressBar(opState: OperationState) {
     if (!showProgressBar(this.hass, this._config, opState)) {
-      return html`<div class="progress-bar-spacer"></div>`;
+      return nothing;
     }
 
     const progress = getProgressPercent(this.hass, this._config)!;
     const barClass = opState === 'pause' ? 'bar-run bar-paused' : 'bar-run';
 
     return html`
-      <div class="progress-bar-container">
-        <div
-          class="progress-bar ${barClass}"
-          style="width: ${progress}%"
-          role="progressbar"
-          aria-valuenow="${progress}"
-          aria-valuemin="0"
-          aria-valuemax="100"
-        ></div>
-      </div>
-    `;
-  }
-
-  private _renderZone3(opState: OperationState) {
-    void this._tick; // Reference _tick so LitElement re-renders on interval
-    const timer = this._getTimerInfo(opState);
-
-    return html`
-      <div class="zone-timer">
-        <span class="timer-value ${timer.colorClass}">${timer.display}</span>
-        ${timer.label
-          ? html`<span class="timer-label">${timer.label}</span>`
-          : nothing}
-      </div>
+      <div
+        class="progress-bar ${barClass}"
+        style="width: ${progress}%"
+        role="progressbar"
+        aria-valuenow="${progress}"
+        aria-valuemin="0"
+        aria-valuemax="100"
+      ></div>
     `;
   }
 
@@ -254,11 +268,14 @@ export class SiemensOvenCard extends LitElement {
             />
           </div>
           <div class="right-panel">
-            <div class="zones-row">
+            ${this._renderTopBar(opState)}
+            <div class="main-row">
               ${this._renderZone2(opState)}
-              ${this._renderZone3(opState)}
+              ${this._renderSetpoint(opState)}
             </div>
-            ${this._renderProgressBar(opState)}
+            <div class="bottom-bar">
+              ${this._renderProgressBar(opState)}
+            </div>
           </div>
         </div>
         ${this._renderDetails(opState)}
@@ -277,9 +294,11 @@ export class SiemensOvenCard extends LitElement {
       background: #0e0e0e;
     }
 
+    /* ── Main card area ── */
+
     .card-main {
       position: relative;
-      height: 160px;
+      height: 180px;
     }
 
     .zone-image {
@@ -302,12 +321,56 @@ export class SiemensOvenCard extends LitElement {
       width: 55%;
       display: flex;
       flex-direction: column;
-      background: transparent;
     }
 
-    .zones-row {
+    /* ── Top bar ── */
+
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+      height: 30px;
+      flex-shrink: 0;
+      border-top: 2px solid #009fe3;
+    }
+
+    .top-bar-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .top-bar-right {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+    }
+
+    .top-timer {
+      font-family: 'BoschSerif', sans-serif;
+      font-size: 15px;
+      letter-spacing: 0.5px;
+    }
+
+    .top-timer.green { color: #fff; }
+    .top-timer.amber { color: #f4a427; }
+    .top-timer.dim   { color: #555; }
+
+    .top-timer-label {
+      font-family: 'BoschSerif', sans-serif;
+      font-size: 9px;
+      color: #777;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Main content row ── */
+
+    .main-row {
       display: flex;
       flex: 1;
+      align-items: center;
     }
 
     .zone-icon {
@@ -315,107 +378,86 @@ export class SiemensOvenCard extends LitElement {
       display: flex;
       flex-direction: row;
       align-items: center;
-      justify-content: center;
-      gap: 12px;
-      padding: 0 12px;
+      gap: 10px;
+      padding: 0 14px;
       overflow: hidden;
     }
 
     .program-icon {
-      width: 44px;
-      height: 44px;
+      width: 40px;
+      height: 40px;
       flex-shrink: 0;
       image-rendering: crisp-edges;
     }
 
     .program-icon.tint-green {
-      filter: drop-shadow(0 0 8px rgba(141, 244, 39, 0.5));
+      filter: drop-shadow(0 0 6px rgba(0, 159, 227, 0.6));
     }
 
     .program-icon.tint-amber {
-      filter: drop-shadow(0 0 8px rgba(244, 164, 39, 0.5));
+      filter: drop-shadow(0 0 6px rgba(244, 164, 39, 0.6));
     }
 
     .program-label {
       font-family: 'BoschSerif', sans-serif;
-      font-size: 13px;
+      font-size: 12px;
       color: #fff;
       line-height: 1.3;
     }
 
     .warning-icon {
-      font-size: 32px;
+      font-size: 28px;
       color: #f44;
     }
 
-    .zone-timer {
+    .zone-setpoint {
       flex: 1;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 4px;
     }
 
-    .timer-value {
+    .setpoint-value {
       font-family: 'BoschSerif', sans-serif;
-      font-size: 32px;
-      letter-spacing: 1px;
-      line-height: 1;
+      font-size: 34px;
+      color: #fff;
+      letter-spacing: 0.5px;
     }
 
-    .timer-value.green { color: #fff; }
-    .timer-value.amber { color: #f4a427; }
-    .timer-value.dim   { color: #555; }
+    /* ── Bottom bar ── */
 
-    .timer-label {
-      font-family: 'BoschSerif', sans-serif;
-      font-size: 10px;
-      color: #888;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-
-    .progress-bar-container {
-      height: 6px;
-      background: #1a1a1a;
-      margin: 0 12px 10px;
-      border-radius: 3px;
+    .bottom-bar {
+      position: relative;
+      height: 20px;
+      flex-shrink: 0;
+      border-bottom: 2px solid #009fe3;
       overflow: hidden;
     }
 
     .progress-bar {
-      height: 100%;
-      border-radius: 3px;
+      position: absolute;
+      inset: 0;
       transition: width 0.5s ease;
     }
 
     .bar-run {
-      background: linear-gradient(90deg, #3a8f00, #8df427);
+      background: rgba(0, 159, 227, 0.2);
     }
 
     .bar-paused {
       opacity: 0.5;
     }
 
-    .progress-bar-spacer {
-      height: 16px;
-    }
+    /* ── Details row ── */
 
     .details-row {
       display: flex;
       flex-wrap: wrap;
-      align-items: baseline;
-      gap: 4px 24px;
-      padding: 10px 16px;
+      align-items: center;
+      gap: 4px 20px;
+      padding: 8px 16px;
       background: #111;
       border-top: 1px solid #1a1a1a;
-    }
-
-    .detail-setpoint {
-      font-family: 'BoschSerif', sans-serif;
-      font-size: 22px;
-      color: #fff;
     }
 
     .detail-item {

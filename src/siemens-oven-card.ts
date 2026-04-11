@@ -85,6 +85,41 @@ export class SiemensOvenCard extends LitElement {
     return 3;
   }
 
+  private _renderZone2(opState: OperationState) {
+    if (opState === 'error' || opState === 'actionrequired') {
+      return html`
+        <div class="zone-icon">
+          <span class="warning-icon">⚠</span>
+        </div>
+      `;
+    }
+
+    if (opState === 'inactive' || opState === 'finished' || opState === 'aborting') {
+      return html`<div class="zone-icon"></div>`;
+    }
+
+    const programState = this.hass.states[this._config.active_program_entity]?.state ?? '';
+    const iconPath = getProgramIconPath(programState, this._resourcesPath);
+    const programLabel = PROGRAM_LABEL_MAP[programState] ?? '';
+
+    if (!iconPath) {
+      return html`<div class="zone-icon"></div>`;
+    }
+
+    const tintClass = opState === 'pause' ? 'tint-amber' : 'tint-green';
+
+    return html`
+      <div class="zone-icon">
+        <img
+          class="program-icon ${tintClass}"
+          src="${iconPath}"
+          alt="${programLabel}"
+        />
+        <span class="program-label">${programLabel}</span>
+      </div>
+    `;
+  }
+
   connectedCallback(): void {
     super.connectedCallback();
     // Refresh every 30s so elapsed/remaining timers stay accurate
@@ -119,7 +154,10 @@ export class SiemensOvenCard extends LitElement {
             />
           </div>
           <div class="right-panel">
-            <!-- Zones 2 + 3 and progress bar added in later tasks -->
+            <div class="zones-row">
+              ${this._renderZone2(opState)}
+              <div class="zone-timer"></div>
+            </div>
           </div>
         </div>
       </ha-card>
@@ -160,6 +198,59 @@ export class SiemensOvenCard extends LitElement {
       display: flex;
       flex-direction: column;
       background: #0e0e0e;
+    }
+
+    .zones-row {
+      display: flex;
+      flex: 1;
+    }
+
+    .zone-icon {
+      flex: 0 0 55%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border-right: 1px solid #1a1a1a;
+      overflow: hidden;
+    }
+
+    .program-icon {
+      width: 56px;
+      height: 56px;
+      image-rendering: crisp-edges;
+    }
+
+    .program-icon.tint-green {
+      filter: drop-shadow(0 0 8px rgba(141, 244, 39, 0.5));
+    }
+
+    .program-icon.tint-amber {
+      filter: drop-shadow(0 0 8px rgba(244, 164, 39, 0.5));
+    }
+
+    .program-label {
+      font-size: 9px;
+      color: #888;
+      text-align: center;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding: 0 4px;
+    }
+
+    .warning-icon {
+      font-size: 32px;
+      color: #f44;
+    }
+
+    .zone-timer {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
     }
   `;
 }

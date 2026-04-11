@@ -237,8 +237,8 @@ const ct=t=>(e,i)=>{void 0!==i?i.addInitializer(()=>{customElements.define(t,e)}
     }
 
     .program-icon {
-      width: 40px;
-      height: 40px;
+      width: 56px;
+      height: 56px;
       flex-shrink: 0;
       image-rendering: crisp-edges;
     }
@@ -267,7 +267,8 @@ const ct=t=>(e,i)=>{void 0!==i?i.addInitializer(()=>{customElements.define(t,e)}
       flex: 1;
       display: flex;
       align-items: center;
-      justify-content: center;
+      justify-content: flex-start;
+      padding-left: 8px;
     }
 
     .setpoint-value {

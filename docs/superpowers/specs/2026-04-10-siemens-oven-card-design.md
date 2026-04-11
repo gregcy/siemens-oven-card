@@ -1,6 +1,7 @@
 # Siemens Oven Card — Design Spec
 
 **Date:** 2026-04-10
+**Updated:** 2026-04-11 (live sensor data confirmed — all three running states verified)
 **Status:** Approved
 
 ---
@@ -75,7 +76,7 @@ Image paths within the card reference `/hacsfiles/siemens-oven-card/images/<file
 
 ## Visual Layout
 
-The card is a single `picture-elements`-style component rendered as a custom element. Layout is three zones in a horizontal strip, with a conditional details row below.
+The card is a single component rendered as a custom element. Layout is three zones in a horizontal strip, with a conditional details row below.
 
 ### Main Card (fixed height ~160px)
 
@@ -92,78 +93,97 @@ The card is a single `picture-elements`-style component rendered as a custom ele
 ```
 
 - **Zone 1:** Static oven background image (`oven-bg.png`, 960×400px PNG)
-- **Zone 2:** Program icon (PNG from `dist/images/`) + program name label below. Hidden when `inactive`/`unknown`.
-- **Zone 3:** 7-segment style `hh:mm` timer display with a label beneath (`remaining`, `elapsed`, `preheating`, or blank)
-- **Progress bar:** Thin bar spanning full width of the right panel (Zones 2+3), visible only when `operation_state` is `ready` or `run`. Hidden when inactive/finished/error.
+- **Zone 2:** Program icon (PNG from `dist/images/`) + program name label below. Green tint when running. Hidden when `inactive`/`unknown`.
+- **Zone 3:** 7-segment style `hh:mm` timer display with a label beneath (`remaining` or `elapsed`)
+- **Progress bar:** Thin bar spanning full width of the right panel (Zones 2+3). Visible **only when `program_progress` is 0–99**. Hidden when `100`, `unavailable`, or `unknown`.
 
 ### Conditional Details Row
 
-Shown below the main card when `operation_state` is `ready`, `run`, or `pause`. Hidden otherwise.
+Shown below the main card when `operation_state` is `run` or `pause`. Hidden otherwise.
 
 Contains:
-- Setpoint temperature (`number.oven_setpoint_temperature`)
 - Cavity temperature (`sensor.oven_current_oven_cavity_temperature`)
-- Program progress % (`sensor.oven_program_progress`, if available)
+- Program progress % (only shown when value is 0–99)
 - Door state (`sensor.oven_door`)
 
 ---
 
 ## State Logic
 
-### Operation States (`sensor.oven_operation_state`)
+### Confirmed Sensor Behaviour (live testing on HB676G5S6)
+
+| Scenario | `operation_state` | `pre_heat_finished` | `remaining_time` | `program_progress` | cavity temp |
+|---|---|---|---|---|---|
+| Off/idle | `inactive` | — | `unavailable` | `unavailable` | 60°C (ambient) |
+| Preheating, no timer | `run` | `off` | `unknown` | `100` | rising |
+| Preheating, with timer | `run` | `off` | valid timestamp | 0–99 | rising |
+| Cooking, with timer | `run` | `off` | valid timestamp | 0–99 | at/above setpoint |
+| Cooking, no timer | `run` | `off` | `unknown` | `100` | at/above setpoint |
+
+**Key findings from live data:**
+- The oven never enters `ready` state — it goes directly to `run`
+- `sensor.oven_pre_heat_finished` stays `off` throughout ALL running states (preheating AND cooking) — not usable for preheat detection
+- `sensor.oven_program_progress` = `100` whenever no timer is set (meaningless); reports real 0–99 when a timer is active
+- `number.oven_setpoint_temperature` stays `unavailable` in all running states — removed from card
+- **Preheat cannot be distinguished from cooking** with available sensors — the design uses a single unified "running" state
+
+### Operation State Table
 
 | State | Zone 2 (Icon) | Zone 3 (Timer) | Progress Bar | Details Row |
 |-------|--------------|----------------|--------------|-------------|
 | `inactive` | Hidden | `--:--` (dim) | Hidden | Hidden |
-| `ready` (preheating) | Program icon (amber tint) | `--:--` label: "preheating" | Visible, red→amber gradient | Shown |
-| `run` + remaining time available | Program icon (green tint) | Remaining `hh:mm`, label: "remaining" | Visible, green gradient | Shown |
-| `run` + remaining time unavailable | Program icon (green tint) | Elapsed `hh:mm`, label: "elapsed" | Visible, green gradient (if progress available) | Shown |
-| `pause` | Program icon (amber tint) | Timer frozen, label: "paused" | Visible, frozen | Shown |
+| `run` + remaining time valid | Program icon, green tint | Remaining `hh:mm`, label: "remaining" | Shown (green, if progress 0–99) | Shown |
+| `run` + remaining time invalid | Program icon, green tint | Elapsed `hh:mm`, label: "elapsed" | Hidden (progress = 100) | Shown |
+| `pause` | Program icon, amber tint | Timer display frozen, label: "paused" | Shown if progress 0–99, frozen + dimmed | Shown |
 | `finished` | Hidden | `--:--` (dim) | Hidden | Hidden |
-| `error` / `actionrequired` | Warning icon (red) | `--:--` | Hidden | Hidden |
+| `error` / `actionrequired` | Warning icon (red ⚠) | `--:--` | Hidden | Hidden |
 | `aborting` | Hidden | `--:--` (dim) | Hidden | Hidden |
 
 ### Timer Calculation
 
-**Remaining time** (`sensor.oven_remaining_program_time` is a future ISO 8601 timestamp):
+**Remaining time** — when `sensor.oven_remaining_program_time` is a future ISO 8601 timestamp:
 ```
-remaining_minutes = (finish_timestamp - now()) / 60
-display = floor(remaining_minutes / 60) + ":" + pad(remaining_minutes % 60)
+remaining_seconds = finish_timestamp - now()
+display = floor(remaining_seconds / 3600) + ":" + pad(floor((remaining_seconds % 3600) / 60))
+label = "remaining"
 ```
 
-**Elapsed time** (when `remaining_program_time` is `unavailable`/`unknown` and `operation_state` is `run`):
+**Elapsed time** — when `remaining_program_time` is `unavailable` or `unknown` (no timer set):
 ```
 elapsed_seconds = now() - sensor.oven_operation_state.last_changed
 display = floor(elapsed_seconds / 3600) + ":" + pad(floor((elapsed_seconds % 3600) / 60))
+label = "elapsed"
 ```
-Note: `last_changed` reflects when `operation_state` last changed to `run`. If the oven transitions through `ready` before `run`, elapsed time resets at that transition — this is the desired behaviour.
+
+The card refreshes every 30 seconds via a `setInterval` so both displays stay accurate.
 
 ### Progress Bar
 
-- Source: `sensor.oven_program_progress` (0–100 integer)
-- If sensor is `unavailable` or `unknown`: progress bar is hidden entirely (graceful degradation — works on all models)
-- Preheating state (`ready`): red → amber gradient
-- Running state (`run`): dark green → bright green gradient
-- Pause state: bar frozen at last value, reduced opacity
+- Source: `sensor.oven_program_progress`
+- **Show only when value is an integer in range 0–99**
+- Value of `100` means no timer was set — treated as hidden (not meaningful progress)
+- `unavailable` or `unknown` — hidden
+- Color: green gradient (`#3a8f00` → `#8df427`)
+- Pause state: bar frozen at last value, 50% opacity
 
 ### Program Icon Mapping
 
 Maps `select.oven_active_program` state value to icon filename:
 
-| Entity State Value | Icon File |
-|-------------------|-----------|
-| `cooking_oven_program_heating_mode_hot_air` | `hot-air.png` |
-| `cooking_oven_program_heating_mode_top_bottom_heating` | `top-bottom.png` |
-| `cooking_oven_program_heating_mode_hot_air_eco` | `hot-air-eco.png` |
-| `cooking_oven_program_heating_mode_top_bottom_heating_eco` | `top-bottom-eco.png` |
-| `cooking_oven_program_heating_mode_hot_air_grilling` | `hot-air-grill.png` |
-| `cooking_oven_program_heating_mode_pizza_setting` | `pizza.png` |
-| `cooking_oven_program_heating_mode_slow_cook` | `slow-cook.png` |
-| `cooking_oven_program_heating_mode_bottom_heating` | `bottom-heat.png` |
-| `cooking_oven_program_heating_mode_keep_warm` | `keep-warm.png` |
-| `cooking_oven_program_heating_mode_preheat_ovenware` | `preheat-ovenware.png` |
-| `cooking_oven_program_heating_mode_frozen_heatup_special` | `frozen.png` |
-| `cooking_oven_program_heating_mode_sabbath_programme` | `sabbath.png` |
+| Entity State Value | Icon File | Display Label |
+|---|---|---|
+| `cooking_oven_program_heating_mode_hot_air` | `hot-air.png` | Hot Air |
+| `cooking_oven_program_heating_mode_top_bottom_heating` | `top-bottom.png` | Top / Bottom |
+| `cooking_oven_program_heating_mode_hot_air_eco` | `hot-air-eco.png` | Hot Air Eco |
+| `cooking_oven_program_heating_mode_top_bottom_heating_eco` | `top-bottom-eco.png` | Top / Bottom Eco |
+| `cooking_oven_program_heating_mode_hot_air_grilling` | `hot-air-grill.png` | Hot Air Grill |
+| `cooking_oven_program_heating_mode_pizza_setting` | `pizza.png` | Pizza |
+| `cooking_oven_program_heating_mode_slow_cook` | `slow-cook.png` | Slow Cook |
+| `cooking_oven_program_heating_mode_bottom_heating` | `bottom-heat.png` | Bottom Heat |
+| `cooking_oven_program_heating_mode_keep_warm` | `keep-warm.png` | Keep Warm |
+| `cooking_oven_program_heating_mode_preheat_ovenware` | `preheat-ovenware.png` | Preheat Ovenware |
+| `cooking_oven_program_heating_mode_frozen_heatup_special` | `frozen.png` | Frozen |
+| `cooking_oven_program_heating_mode_sabbath_programme` | `sabbath.png` | Sabbath |
 
 If state is `unknown`/`unavailable` or not in the map: icon hidden.
 
@@ -182,7 +202,6 @@ active_program_entity: select.oven_active_program
 remaining_time_entity: sensor.oven_remaining_program_time
 cavity_temp_entity: sensor.oven_current_oven_cavity_temperature
 program_progress_entity: sensor.oven_program_progress
-setpoint_temp_entity: number.oven_setpoint_temperature
 door_entity: sensor.oven_door
 
 # Optional
@@ -192,11 +211,11 @@ resources_path: /hacsfiles/siemens-oven-card  # default — override for manual 
 
 ### `resources_path` — HACS vs manual install
 
-All asset paths (images, font) are constructed as `${resources_path}/images/<file>.png`. This makes the card installable in two ways:
+All asset paths (images, font) are constructed as `${resources_path}/images/<file>.png`.
 
 | Install method | `resources_path` value | Files go in |
 |---|---|---|
-| HACS (default) | `/hacsfiles/siemens-oven-card` (default, omit from config) | Installed automatically by HACS |
+| HACS (default) | `/hacsfiles/siemens-oven-card` (omit from config) | Installed automatically by HACS |
 | Manual | `/local/siemens-oven-card` (set explicitly) | `config/www/siemens-oven-card/` |
 
 **Manual install steps:**
@@ -210,13 +229,12 @@ All asset paths (images, font) are constructed as `${resources_path}/images/<fil
 
 ```typescript
 interface SiemensOvenCardConfig {
-  // Required
+  // Required entity IDs — rename to match your oven
   operation_state_entity: string;
   active_program_entity: string;
   remaining_time_entity: string;
   cavity_temp_entity: string;
   program_progress_entity: string;
-  setpoint_temp_entity: string;
   door_entity: string;
   // Optional
   name?: string;
@@ -247,20 +265,16 @@ Images live in `dist/images/` and are committed to the repo so they are included
 
 | Entity | Required | Notes |
 |--------|----------|-------|
-| `sensor.oven_operation_state` | Yes | States: `inactive`, `ready`, `run`, `pause`, `finished`, `error`, `actionrequired`, `aborting` |
-| `select.oven_active_program` | Yes | Values: `cooking_oven_program_heating_mode_*` |
-| `sensor.oven_remaining_program_time` | Yes | ISO 8601 future timestamp when active, `unavailable` when idle |
-| `sensor.oven_current_oven_cavity_temperature` | Yes | Integer °C, reliable even when idle |
-| `sensor.oven_program_progress` | Yes | 0–100 integer when active; card hides bar gracefully if `unavailable` |
-| `number.oven_setpoint_temperature` | Yes | `unavailable` when idle — shown in details row when active |
-| `sensor.oven_door` | Yes | States: `open`, `closed`, `locked` |
+| `sensor.oven_operation_state` | Yes | States: `inactive`, `run`, `pause`, `finished`, `error`, `actionrequired`, `aborting`. Never enters `ready` on HB676G5S6. |
+| `select.oven_active_program` | Yes | Values: `cooking_oven_program_heating_mode_*`. Reports correctly while running. |
+| `sensor.oven_remaining_program_time` | Yes | ISO 8601 future timestamp when timer active; `unknown` when no timer set. |
+| `sensor.oven_current_oven_cavity_temperature` | Yes | Float °C, reliable in all states. |
+| `sensor.oven_program_progress` | Yes | 0–99 when timer active and running; `100` when no timer (hidden); `unavailable` when idle. |
+| `sensor.oven_door` | Yes | States: `open`, `closed`, `locked`. |
 
----
-
-## Known Unknowns
-
-- **`sensor.oven_program_progress` availability:** Community reports suggest this sensor may stay `unavailable` on some models/firmware even while running. The card handles this gracefully by hiding the progress bar if the sensor is unavailable. To be confirmed by running the oven and checking the sensor value.
-- **Setpoint temperature units:** Assumed °C. If HA returns a different unit, the display label may need updating.
+**Excluded from original design (confirmed unavailable/unreliable):**
+- `number.oven_setpoint_temperature` — `unavailable` in all running states
+- `sensor.oven_pre_heat_finished` — stays `off` throughout all running states; cannot distinguish preheating from cooking
 
 ---
 
@@ -270,6 +284,7 @@ Images live in `dist/images/` and are committed to the repo so they are included
 - Supporting non-Home Connect oven integrations
 - Supporting other Siemens/Bosch appliance types in this repo
 - Alarm clock display (`number.oven_alarm_clock`) — not part of initial card
+- Preheat detection — no reliable sensor signal available on this model
 
 ---
 

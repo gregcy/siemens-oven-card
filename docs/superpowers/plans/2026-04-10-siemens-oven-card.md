@@ -12,19 +12,19 @@
 
 ## Pre-requisite: Spec
 
-Read `docs/superpowers/specs/2026-04-10-siemens-oven-card-design.md` in the `lg-washer-dryer-card` repo before starting. All design decisions are documented there.
+Read `docs/superpowers/specs/2026-04-10-siemens-oven-card-design.md` before starting. All design decisions and confirmed sensor behaviour are documented there.
 
 ---
 
 ## File Map
 
 ```
-siemens-oven-card/           ← new repo at ~/workspace/siemens-oven-card/
+siemens-oven-card/           ← repo at ~/workspace/siemens-oven-card/
 ├── src/
 │   ├── types.ts             ← HA interfaces + SiemensOvenCardConfig
-│   ├── const.ts             ← PROGRAM_ICON_MAP, PROGRAM_LABEL_MAP, HACSFILES_BASE
+│   ├── const.ts             ← PROGRAM_ICON_MAP, PROGRAM_LABEL_MAP, DEFAULT_RESOURCES_PATH
 │   ├── timer.ts             ← pure timer functions (formatTime, getRemainingSeconds, getElapsedSeconds)
-│   ├── state.ts             ← pure state functions (getOperationState, getProgramIconPath, etc.)
+│   ├── state.ts             ← pure state functions (getOperationState, getProgramIconPath, getProgressPercent, showDetailsRow, showProgressBar)
 │   ├── siemens-oven-card.ts ← main LitElement card
 │   └── editor.ts            ← LovelaceCardEditor implementation
 ├── test/
@@ -48,41 +48,37 @@ siemens-oven-card/           ← new repo at ~/workspace/siemens-oven-card/
 ## Task 1: Create and scaffold new repo
 
 **Files:**
-- Create: `~/workspace/siemens-oven-card/` (new git repo)
-- Create: `.gitignore`
+- Create: `~/workspace/siemens-oven-card/` (already exists — initialised during brainstorming)
 
-- [ ] **Step 1: Create the repo directory and initialise git**
+- [ ] **Step 1: Verify repo state**
 
 ```bash
-mkdir ~/workspace/siemens-oven-card
 cd ~/workspace/siemens-oven-card
-git init
+git log --oneline
+ls
 ```
 
-Expected: `Initialized empty Git repository in ~/workspace/siemens-oven-card/.git/`
+Expected: one commit (`chore: initial repo scaffold with spec and plan`), `.gitignore`, `dist/`, `docs/`.
 
-- [ ] **Step 2: Create `.gitignore`**
-
-```
-node_modules/
-dist/siemens-oven-card.js
-dist-tsc/
-.DS_Store
-```
-
-Note: `dist/images/` and `dist/fonts/` are NOT gitignored — they contain committed assets.
-
-- [ ] **Step 3: Create the directory structure**
+- [ ] **Step 2: Create source directories**
 
 ```bash
-mkdir -p src test dist/images dist/fonts
+mkdir -p src test
 ```
 
-- [ ] **Step 4: Commit scaffold**
+- [ ] **Step 3: Commit scaffold**
 
 ```bash
-git add .gitignore
-git commit -m "chore: initial repo scaffold"
+git add src test
+git status  # confirm directories tracked (may need .gitkeep if empty)
+```
+
+If git won't track empty dirs, add placeholders:
+
+```bash
+touch src/.gitkeep test/.gitkeep
+git add src/.gitkeep test/.gitkeep
+git commit -m "chore: add src and test directories"
 ```
 
 ---
@@ -220,7 +216,6 @@ export interface SiemensOvenCardConfig {
   remaining_time_entity: string;
   cavity_temp_entity: string;
   program_progress_entity: string;
-  setpoint_temp_entity: string;
   door_entity: string;
   // Optional
   name?: string;
@@ -230,6 +225,7 @@ export interface SiemensOvenCardConfig {
 export type OperationState =
   | 'inactive'
   | 'ready'
+  | 'delayedstart'
   | 'run'
   | 'pause'
   | 'finished'
@@ -346,7 +342,7 @@ describe('formatTime', () => {
 describe('getRemainingSeconds', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-04-10T12:00:00Z'));
+    vi.setSystemTime(new Date('2026-04-11T12:00:00Z'));
   });
 
   afterEach(() => {
@@ -354,17 +350,20 @@ describe('getRemainingSeconds', () => {
   });
 
   it('returns seconds until a future timestamp', () => {
-    const future = '2026-04-10T12:45:00Z';
+    const future = '2026-04-11T12:45:00Z';
     expect(getRemainingSeconds(future)).toBe(45 * 60);
   });
 
   it('returns null for a past timestamp', () => {
-    const past = '2026-04-10T11:00:00Z';
+    const past = '2026-04-11T11:00:00Z';
     expect(getRemainingSeconds(past)).toBeNull();
   });
 
-  it('returns null for an invalid timestamp', () => {
+  it('returns null for unavailable', () => {
     expect(getRemainingSeconds('unavailable')).toBeNull();
+  });
+
+  it('returns null for unknown', () => {
     expect(getRemainingSeconds('unknown')).toBeNull();
   });
 });
@@ -372,7 +371,7 @@ describe('getRemainingSeconds', () => {
 describe('getElapsedSeconds', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-04-10T12:00:00Z'));
+    vi.setSystemTime(new Date('2026-04-11T12:00:00Z'));
   });
 
   afterEach(() => {
@@ -380,12 +379,12 @@ describe('getElapsedSeconds', () => {
   });
 
   it('returns seconds elapsed since a past timestamp', () => {
-    const past = '2026-04-10T11:00:00Z';
+    const past = '2026-04-11T11:00:00Z';
     expect(getElapsedSeconds(past)).toBe(3600);
   });
 
   it('returns 0 for a future timestamp', () => {
-    const future = '2026-04-10T13:00:00Z';
+    const future = '2026-04-11T13:00:00Z';
     expect(getElapsedSeconds(future)).toBe(0);
   });
 
@@ -418,7 +417,7 @@ export function formatTime(totalSeconds: number): string {
 
 /**
  * Returns the number of seconds until the given ISO 8601 timestamp.
- * Returns null if the timestamp is in the past, invalid, or unavailable.
+ * Returns null if the timestamp is in the past, invalid, unavailable, or unknown.
  */
 export function getRemainingSeconds(isoTimestamp: string): number | null {
   const finish = new Date(isoTimestamp).getTime();
@@ -480,7 +479,6 @@ const BASE_CONFIG: SiemensOvenCardConfig = {
   remaining_time_entity: 'sensor.oven_remaining_program_time',
   cavity_temp_entity: 'sensor.oven_current_oven_cavity_temperature',
   program_progress_entity: 'sensor.oven_program_progress',
-  setpoint_temp_entity: 'number.oven_setpoint_temperature',
   door_entity: 'sensor.oven_door',
 };
 
@@ -490,7 +488,12 @@ function makeHass(states: Record<string, string>): HomeAssistant {
     states: Object.fromEntries(
       Object.entries(states).map(([id, state]) => [
         id,
-        { state, attributes: {}, last_changed: '2026-04-10T12:00:00Z', last_updated: '2026-04-10T12:00:00Z' },
+        {
+          state,
+          attributes: {},
+          last_changed: '2026-04-11T12:00:00Z',
+          last_updated: '2026-04-11T12:00:00Z',
+        },
       ])
     ),
   };
@@ -540,9 +543,14 @@ describe('getProgramIconPath', () => {
 });
 
 describe('getProgressPercent', () => {
-  it('returns numeric value when sensor reports a number', () => {
-    const hass = makeHass({ 'sensor.oven_program_progress': '68' });
-    expect(getProgressPercent(hass, BASE_CONFIG)).toBe(68);
+  it('returns numeric value when sensor reports 0–99', () => {
+    const hass = makeHass({ 'sensor.oven_program_progress': '14' });
+    expect(getProgressPercent(hass, BASE_CONFIG)).toBe(14);
+  });
+
+  it('returns null when sensor reports 100 (no timer set — meaningless)', () => {
+    const hass = makeHass({ 'sensor.oven_program_progress': '100' });
+    expect(getProgressPercent(hass, BASE_CONFIG)).toBeNull();
   });
 
   it('returns null when sensor is unavailable', () => {
@@ -559,11 +567,15 @@ describe('getProgressPercent', () => {
     const hass = makeHass({});
     expect(getProgressPercent(hass, BASE_CONFIG)).toBeNull();
   });
+
+  it('returns 0 when sensor reports 0', () => {
+    const hass = makeHass({ 'sensor.oven_program_progress': '0' });
+    expect(getProgressPercent(hass, BASE_CONFIG)).toBe(0);
+  });
 });
 
 describe('showDetailsRow', () => {
-  it('shows details for ready, run, pause', () => {
-    expect(showDetailsRow('ready')).toBe(true);
+  it('shows details for run and pause', () => {
     expect(showDetailsRow('run')).toBe(true);
     expect(showDetailsRow('pause')).toBe(true);
   });
@@ -578,16 +590,29 @@ describe('showDetailsRow', () => {
 });
 
 describe('showProgressBar', () => {
-  it('shows progress bar for ready, run, pause', () => {
-    expect(showProgressBar('ready')).toBe(true);
-    expect(showProgressBar('run')).toBe(true);
-    expect(showProgressBar('pause')).toBe(true);
+  it('returns true when progress is 0–99', () => {
+    const hass = makeHass({ 'sensor.oven_program_progress': '14' });
+    expect(showProgressBar(hass, BASE_CONFIG, 'run')).toBe(true);
   });
 
-  it('hides progress bar for other states', () => {
-    expect(showProgressBar('inactive')).toBe(false);
-    expect(showProgressBar('finished')).toBe(false);
-    expect(showProgressBar('error')).toBe(false);
+  it('returns false when progress is 100', () => {
+    const hass = makeHass({ 'sensor.oven_program_progress': '100' });
+    expect(showProgressBar(hass, BASE_CONFIG, 'run')).toBe(false);
+  });
+
+  it('returns false when progress is unavailable', () => {
+    const hass = makeHass({ 'sensor.oven_program_progress': 'unavailable' });
+    expect(showProgressBar(hass, BASE_CONFIG, 'run')).toBe(false);
+  });
+
+  it('returns false when operation state is inactive', () => {
+    const hass = makeHass({ 'sensor.oven_program_progress': '14' });
+    expect(showProgressBar(hass, BASE_CONFIG, 'inactive')).toBe(false);
+  });
+
+  it('returns false when operation state is finished', () => {
+    const hass = makeHass({ 'sensor.oven_program_progress': '14' });
+    expect(showProgressBar(hass, BASE_CONFIG, 'finished')).toBe(false);
   });
 });
 ```
@@ -606,7 +631,7 @@ Expected: FAIL — `Cannot find module '../src/state'`
 import { DEFAULT_RESOURCES_PATH, PROGRAM_ICON_MAP } from './const';
 import type { HomeAssistant, OperationState, SiemensOvenCardConfig } from './types';
 
-const ACTIVE_STATES: OperationState[] = ['ready', 'run', 'pause'];
+const ACTIVE_STATES: OperationState[] = ['run', 'pause'];
 
 /**
  * Returns the current operation state of the oven.
@@ -630,7 +655,10 @@ export function getProgramIconPath(programState: string, resourcesPath: string):
 }
 
 /**
- * Returns the program progress as a 0–100 integer, or null if unavailable.
+ * Returns the program progress as a 0–99 integer, or null if unavailable/100.
+ *
+ * NOTE: The Home Connect integration reports 100 when no timer is set — this is
+ * not meaningful progress. We treat it as null to hide the progress bar.
  */
 export function getProgressPercent(
   hass: HomeAssistant,
@@ -639,11 +667,13 @@ export function getProgressPercent(
   const state = hass.states[config.program_progress_entity]?.state;
   if (!state || state === 'unavailable' || state === 'unknown') return null;
   const value = parseInt(state, 10);
-  return isNaN(value) ? null : value;
+  if (isNaN(value) || value >= 100) return null;
+  return value;
 }
 
 /**
  * Returns true when the conditional details row should be visible.
+ * Shown only during active states (run, pause).
  */
 export function showDetailsRow(opState: OperationState): boolean {
   return ACTIVE_STATES.includes(opState);
@@ -651,9 +681,15 @@ export function showDetailsRow(opState: OperationState): boolean {
 
 /**
  * Returns true when the progress bar should be visible.
+ * Requires active state AND a meaningful progress value (0–99).
  */
-export function showProgressBar(opState: OperationState): boolean {
-  return ACTIVE_STATES.includes(opState);
+export function showProgressBar(
+  hass: HomeAssistant,
+  config: SiemensOvenCardConfig,
+  opState: OperationState
+): boolean {
+  if (!ACTIVE_STATES.includes(opState)) return false;
+  return getProgressPercent(hass, config) !== null;
 }
 ```
 
@@ -718,6 +754,11 @@ export class SiemensOvenCard extends LitElement {
 
   private _tickInterval?: ReturnType<typeof setInterval>;
 
+  /** Resolves the base URL for all assets — supports HACS and manual installs. */
+  private get _resourcesPath(): string {
+    return this._config?.resources_path ?? DEFAULT_RESOURCES_PATH;
+  }
+
   /** Called by HA when the user saves config (YAML or visual editor). */
   setConfig(config: SiemensOvenCardConfig): void {
     const required: (keyof SiemensOvenCardConfig)[] = [
@@ -726,7 +767,6 @@ export class SiemensOvenCard extends LitElement {
       'remaining_time_entity',
       'cavity_temp_entity',
       'program_progress_entity',
-      'setpoint_temp_entity',
       'door_entity',
     ];
     for (const field of required) {
@@ -735,11 +775,6 @@ export class SiemensOvenCard extends LitElement {
       }
     }
     this._config = config;
-  }
-
-  /** Resolves the base URL for all assets — supports HACS and manual installs. */
-  private get _resourcesPath(): string {
-    return this._config?.resources_path ?? DEFAULT_RESOURCES_PATH;
   }
 
   /** Returns the visual editor element registered in editor.ts. */
@@ -755,7 +790,6 @@ export class SiemensOvenCard extends LitElement {
       remaining_time_entity: 'sensor.oven_remaining_program_time',
       cavity_temp_entity: 'sensor.oven_current_oven_cavity_temperature',
       program_progress_entity: 'sensor.oven_program_progress',
-      setpoint_temp_entity: 'number.oven_setpoint_temperature',
       door_entity: 'sensor.oven_door',
     };
   }
@@ -811,13 +845,23 @@ git commit -m "feat: add card skeleton (LitElement class, setConfig, lifecycle)"
 **Files:**
 - Modify: `src/siemens-oven-card.ts`
 
-- [ ] **Step 1: Replace the stub `render()` with the Zone 1 layout**
+- [ ] **Step 1: Replace stub `render()` and `styles` with Zone 1 layout**
 
-Replace the `render()` method and `styles` in `src/siemens-oven-card.ts`:
+Replace the `render()` method and `static styles` in `src/siemens-oven-card.ts`:
 
 ```typescript
 render() {
   if (!this._config || !this.hass) return nothing;
+
+  // Inject 7-segment font dynamically to respect resources_path
+  if (!this.shadowRoot!.querySelector('style[data-font]')) {
+    const s = document.createElement('style');
+    s.setAttribute('data-font', '');
+    s.textContent = `@font-face { font-family: 'segment7'; src: url('${this._resourcesPath}/fonts/7segment.woff') format('woff'); }`;
+    this.shadowRoot!.appendChild(s);
+  }
+
+  const opState = getOperationState(this.hass, this._config);
 
   return html`
     <ha-card>
@@ -829,7 +873,7 @@ render() {
           />
         </div>
         <div class="right-panel">
-          <!-- Zones 2 + 3 and progress bar go here in later tasks -->
+          <!-- Zones 2 + 3 and progress bar added in later tasks -->
         </div>
       </div>
     </ha-card>
@@ -894,16 +938,12 @@ git commit -m "feat: render Zone 1 oven background image"
 **Files:**
 - Modify: `src/siemens-oven-card.ts`
 
-- [ ] **Step 1: Add the `_renderZone2()` private method and zones-row layout**
+- [ ] **Step 1: Add `_renderZone2()` private method**
 
-Add this private method to the `SiemensOvenCard` class (before `render()`):
+Add this method to the class (before `render()`):
 
 ```typescript
 private _renderZone2(opState: OperationState) {
-  const programState = this.hass.states[this._config.active_program_entity]?.state ?? '';
-  const iconPath = getProgramIconPath(programState, this._resourcesPath);
-  const programLabel = PROGRAM_LABEL_MAP[programState] ?? '';
-
   if (opState === 'error' || opState === 'actionrequired') {
     return html`
       <div class="zone-icon">
@@ -912,15 +952,19 @@ private _renderZone2(opState: OperationState) {
     `;
   }
 
-  const tintClass =
-    opState === 'run' ? 'tint-green'
-    : opState === 'pause' ? 'tint-amber'
-    : opState === 'ready' ? 'tint-amber'
-    : '';
-
-  if (!iconPath || opState === 'inactive' || opState === 'finished' || opState === 'aborting') {
+  if (opState === 'inactive' || opState === 'finished' || opState === 'aborting') {
     return html`<div class="zone-icon"></div>`;
   }
+
+  const programState = this.hass.states[this._config.active_program_entity]?.state ?? '';
+  const iconPath = getProgramIconPath(programState, this._resourcesPath);
+  const programLabel = PROGRAM_LABEL_MAP[programState] ?? '';
+
+  if (!iconPath) {
+    return html`<div class="zone-icon"></div>`;
+  }
+
+  const tintClass = opState === 'pause' ? 'tint-amber' : 'tint-green';
 
   return html`
     <div class="zone-icon">
@@ -935,25 +979,21 @@ private _renderZone2(opState: OperationState) {
 }
 ```
 
-- [ ] **Step 2: Update `render()` to include the zones-row with Zone 2**
+- [ ] **Step 2: Update `render()` to include zones-row with Zone 2**
 
-Replace the `.right-panel` div in `render()`:
-
-```typescript
-<div class="right-panel">
-  <div class="zones-row">
-    ${this._renderZone2(opState)}
-    <!-- Zone 3 added in next task -->
-    <div class="zone-timer"></div>
-  </div>
-</div>
-```
-
-Also update the top of `render()` to compute `opState`:
+Replace the `.right-panel` div contents:
 
 ```typescript
 render() {
   if (!this._config || !this.hass) return nothing;
+
+  if (!this.shadowRoot!.querySelector('style[data-font]')) {
+    const s = document.createElement('style');
+    s.setAttribute('data-font', '');
+    s.textContent = `@font-face { font-family: 'segment7'; src: url('${this._resourcesPath}/fonts/7segment.woff') format('woff'); }`;
+    this.shadowRoot!.appendChild(s);
+  }
+
   const opState = getOperationState(this.hass, this._config);
 
   return html`
@@ -979,7 +1019,7 @@ render() {
 
 - [ ] **Step 3: Add Zone 2 CSS to `static styles`**
 
-Append to the existing `css` block:
+Append to existing `css` block:
 
 ```typescript
 static styles = css`
@@ -1062,11 +1102,8 @@ git commit -m "feat: render Zone 2 program icon with state-dependent tint"
 
 - [ ] **Step 1: Add `_getTimerInfo()` private method**
 
-Add this method to the class:
-
 ```typescript
 private _getTimerInfo(opState: OperationState): TimerInfo {
-  // States that show nothing active
   if (
     opState === 'inactive' ||
     opState === 'finished' ||
@@ -1077,11 +1114,7 @@ private _getTimerInfo(opState: OperationState): TimerInfo {
     return { display: '--:--', label: '', colorClass: 'dim' };
   }
 
-  if (opState === 'ready') {
-    return { display: '--:--', label: 'preheating', colorClass: 'amber' };
-  }
-
-  // run or pause: try remaining time first
+  // run or pause: try remaining time first (set when a duration/timer is active)
   const remainingState = this.hass.states[this._config.remaining_time_entity]?.state ?? '';
   if (remainingState && remainingState !== 'unavailable' && remainingState !== 'unknown') {
     const remaining = getRemainingSeconds(remainingState);
@@ -1094,14 +1127,14 @@ private _getTimerInfo(opState: OperationState): TimerInfo {
     }
   }
 
-  // Fall back to elapsed time
+  // No timer set — fall back to elapsed time since operation_state last changed to run
   const lastChanged =
     this.hass.states[this._config.operation_state_entity]?.last_changed ?? '';
   const elapsed = getElapsedSeconds(lastChanged);
   return {
     display: formatTime(elapsed),
     label: opState === 'pause' ? 'paused' : 'elapsed',
-    colorClass: 'amber',
+    colorClass: opState === 'pause' ? 'amber' : 'green',
   };
 }
 ```
@@ -1110,8 +1143,7 @@ private _getTimerInfo(opState: OperationState): TimerInfo {
 
 ```typescript
 private _renderZone3(opState: OperationState) {
-  // Reference _tick so LitElement re-renders when the interval fires
-  void this._tick;
+  void this._tick; // Reference _tick so LitElement re-renders on interval
   const timer = this._getTimerInfo(opState);
 
   return html`
@@ -1130,23 +1162,15 @@ private _renderZone3(opState: OperationState) {
 
 - [ ] **Step 3: Update `render()` to call `_renderZone3()`**
 
-Replace `<div class="zone-timer"></div>` in `render()` with:
+Replace `<div class="zone-timer"></div>` in the zones-row with:
 
 ```typescript
 ${this._renderZone3(opState)}
 ```
 
-- [ ] **Step 4: Add font-face and timer CSS to `static styles`**
+- [ ] **Step 4: Add timer CSS to `static styles`**
 
 ```typescript
-static styles = css`
-  /* ... existing styles ... */
-
-  @font-face {
-    font-family: 'segment7';
-    src: url('${HACSFILES_BASE}/fonts/7segment.woff') format('woff');
-  }
-
   .timer-display {
     position: relative;
     font-family: 'segment7', 'Courier New', monospace;
@@ -1176,22 +1200,7 @@ static styles = css`
     text-transform: uppercase;
     letter-spacing: 1px;
   }
-`;
 ```
-
-**Note:** LitElement's tagged `css` does not support template interpolation, so the font-face URL cannot use `_resourcesPath`. Instead, inject it as an inline style on the host element from `render()`. Add this line inside `render()` before the `return html\`...\``:
-
-```typescript
-// Inject font dynamically so it respects resources_path (HACS vs manual install)
-if (!this.shadowRoot!.querySelector('style[data-font]')) {
-  const s = document.createElement('style');
-  s.setAttribute('data-font', '');
-  s.textContent = `@font-face { font-family: 'segment7'; src: url('${this._resourcesPath}/fonts/7segment.woff') format('woff'); }`;
-  this.shadowRoot!.appendChild(s);
-}
-```
-
-Remove the `@font-face` block from `static styles` entirely.
 
 - [ ] **Step 5: Build and verify**
 
@@ -1217,21 +1226,12 @@ git commit -m "feat: render Zone 3 timer display with 7-segment font"
 
 ```typescript
 private _renderProgressBar(opState: OperationState) {
-  if (!showProgressBar(opState)) {
-    // Reserve space so the card height stays consistent
+  if (!showProgressBar(this.hass, this._config, opState)) {
     return html`<div class="progress-bar-spacer"></div>`;
   }
 
-  const progress = getProgressPercent(this.hass, this._config);
-  if (progress === null) {
-    // Sensor unavailable — hide bar but keep spacer
-    return html`<div class="progress-bar-spacer"></div>`;
-  }
-
-  const barClass =
-    opState === 'ready' ? 'bar-preheat'
-    : opState === 'pause' ? 'bar-run bar-paused'
-    : 'bar-run';
+  const progress = getProgressPercent(this.hass, this._config)!;
+  const barClass = opState === 'pause' ? 'bar-run bar-paused' : 'bar-run';
 
   return html`
     <div class="progress-bar-container">
@@ -1260,7 +1260,7 @@ private _renderProgressBar(opState: OperationState) {
 </div>
 ```
 
-- [ ] **Step 3: Add progress bar CSS to `static styles`**
+- [ ] **Step 3: Add progress bar CSS**
 
 ```typescript
   .progress-bar-container {
@@ -1275,10 +1275,6 @@ private _renderProgressBar(opState: OperationState) {
     height: 100%;
     border-radius: 3px;
     transition: width 0.5s ease;
-  }
-
-  .bar-preheat {
-    background: linear-gradient(90deg, #f44444, #f4a427);
   }
 
   .bar-run {
@@ -1304,7 +1300,7 @@ npm run build
 
 ```bash
 git add src/siemens-oven-card.ts
-git commit -m "feat: render progress bar with state-dependent gradient"
+git commit -m "feat: render progress bar (shown only when progress is 0-99)"
 ```
 
 ---
@@ -1320,24 +1316,22 @@ git commit -m "feat: render progress bar with state-dependent gradient"
 private _renderDetails(opState: OperationState) {
   if (!showDetailsRow(opState)) return nothing;
 
-  const setpointState = this.hass.states[this._config.setpoint_temp_entity]?.state;
   const cavityState = this.hass.states[this._config.cavity_temp_entity]?.state;
   const progress = getProgressPercent(this.hass, this._config);
   const doorState = this.hass.states[this._config.door_entity]?.state;
 
-  const setpoint =
-    setpointState && setpointState !== 'unavailable' && setpointState !== 'unknown'
-      ? setpointState
-      : null;
   const cavity =
-    cavityState && cavityState !== 'unavailable' ? cavityState : null;
+    cavityState && cavityState !== 'unavailable' && cavityState !== 'unknown'
+      ? cavityState
+      : null;
   const door =
-    doorState && doorState !== 'unavailable' ? doorState : null;
+    doorState && doorState !== 'unavailable' && doorState !== 'unknown'
+      ? doorState
+      : null;
 
   return html`
     <div class="details-row">
-      ${setpoint ? html`<span class="detail-item">🌡 Set: ${setpoint}°C</span>` : nothing}
-      ${cavity ? html`<span class="detail-item">🌡 Cavity: ${cavity}°C</span>` : nothing}
+      ${cavity ? html`<span class="detail-item">🌡 ${cavity}°C</span>` : nothing}
       ${progress !== null ? html`<span class="detail-item">▓ ${progress}%</span>` : nothing}
       ${door ? html`<span class="detail-item">🚪 ${door}</span>` : nothing}
     </div>
@@ -1345,7 +1339,7 @@ private _renderDetails(opState: OperationState) {
 }
 ```
 
-- [ ] **Step 2: Update `render()` to include the details row below `.card-main`**
+- [ ] **Step 2: Update `render()` to include details row below `.card-main`**
 
 ```typescript
 return html`
@@ -1353,7 +1347,7 @@ return html`
     <div class="card-main">
       <div class="zone-image">
         <img
-          src="/hacsfiles/siemens-oven-card/images/oven-bg.png"
+          src="${this._resourcesPath}/images/oven-bg.png"
           alt="${this._config.name ?? 'Oven'}"
         />
       </div>
@@ -1398,7 +1392,7 @@ npm run build
 
 ```bash
 git add src/siemens-oven-card.ts
-git commit -m "feat: render conditional details row (setpoint, cavity, progress, door)"
+git commit -m "feat: render conditional details row (cavity temp, progress, door)"
 ```
 
 ---
@@ -1407,7 +1401,7 @@ git commit -m "feat: render conditional details row (setpoint, cavity, progress,
 
 **Files:**
 - Create: `src/editor.ts`
-- Modify: `src/siemens-oven-card.ts` (import editor)
+- Modify: `src/siemens-oven-card.ts` (add import)
 
 - [ ] **Step 1: Write `src/editor.ts`**
 
@@ -1422,7 +1416,6 @@ const ENTITY_FIELDS: Array<{ key: keyof SiemensOvenCardConfig; label: string }> 
   { key: 'remaining_time_entity', label: 'Remaining Time Entity' },
   { key: 'cavity_temp_entity', label: 'Cavity Temperature Entity' },
   { key: 'program_progress_entity', label: 'Program Progress Entity' },
-  { key: 'setpoint_temp_entity', label: 'Setpoint Temperature Entity' },
   { key: 'door_entity', label: 'Door Entity' },
 ];
 
@@ -1440,7 +1433,10 @@ export class SiemensOvenCardEditor extends LitElement {
     const target = ev.target as HTMLElement;
     const key = target.getAttribute('data-key') as keyof SiemensOvenCardConfig;
     if (!key) return;
-    const updated: SiemensOvenCardConfig = { ...this._config, [key]: (ev.detail as { value: string }).value };
+    const updated: SiemensOvenCardConfig = {
+      ...this._config,
+      [key]: (ev.detail as { value: string }).value,
+    };
     this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: updated } }));
   }
 
@@ -1511,9 +1507,9 @@ export class SiemensOvenCardEditor extends LitElement {
 }
 ```
 
-- [ ] **Step 2: Import editor in `src/siemens-oven-card.ts`**
+- [ ] **Step 2: Add import to `src/siemens-oven-card.ts`**
 
-Add this import at the top of `src/siemens-oven-card.ts` (after the existing imports):
+Add at the top after existing imports:
 
 ```typescript
 import './editor';
@@ -1524,8 +1520,6 @@ import './editor';
 ```bash
 npm run build
 ```
-
-Expected: no errors, `dist/siemens-oven-card.js` includes editor code.
 
 - [ ] **Step 4: Commit**
 
@@ -1539,22 +1533,18 @@ git commit -m "feat: add visual config editor (LovelaceCardEditor)"
 ## Task 14: Add font and images to dist/
 
 **Files:**
-- Create: `dist/fonts/7segment.woff` (copy from lg-washer-dryer-card)
-- Create: `dist/images/.gitkeep` (placeholder until real images provided)
+- Create: `dist/fonts/7segment.woff`
+- Create: `dist/images/` PNG files
 
-- [ ] **Step 1: Copy the 7segment font**
+- [ ] **Step 1: Copy the 7-segment font**
 
 ```bash
 cp ~/workspace/lg-washer-dryer-card/config/www/7segment.woff dist/fonts/7segment.woff
 ```
 
-- [ ] **Step 2: Create placeholder for images directory**
+- [ ] **Step 2: Remove placeholder and add real images**
 
-```bash
-touch dist/images/.gitkeep
-```
-
-The 12 program icon PNGs and `oven-bg.png` will be added by the developer when they have the files. Expected filenames (from the spec):
+When PNG files are ready, copy them into `dist/images/`. Expected filenames:
 
 ```
 dist/images/oven-bg.png           (960×400px oven background)
@@ -1572,15 +1562,17 @@ dist/images/frozen.png
 dist/images/sabbath.png
 ```
 
-- [ ] **Step 3: Update `.gitignore` — ensure font and images are tracked**
-
-Confirm `.gitignore` does NOT contain `dist/fonts/` or `dist/images/`. Only `dist/siemens-oven-card.js` is ignored (it's generated). The current `.gitignore` is already correct.
-
-- [ ] **Step 4: Commit font**
+- [ ] **Step 3: Remove .gitkeep placeholders once images are added**
 
 ```bash
-git add dist/fonts/7segment.woff dist/images/.gitkeep
-git commit -m "chore: add 7segment font and images placeholder to dist/"
+rm dist/images/.gitkeep dist/fonts/.gitkeep
+```
+
+- [ ] **Step 4: Commit font (images committed separately when ready)**
+
+```bash
+git add dist/fonts/7segment.woff
+git commit -m "chore: add 7segment font to dist/"
 ```
 
 ---
@@ -1601,16 +1593,16 @@ git commit -m "chore: add 7segment font and images placeholder to dist/"
 }
 ```
 
-`content_in_root: false` tells HACS to install everything from `dist/` (including `dist/images/` and `dist/fonts/`) to `/hacsfiles/siemens-oven-card/`.
+`content_in_root: false` tells HACS to install everything from `dist/` to `/hacsfiles/siemens-oven-card/`.
 
 - [ ] **Step 2: Write `README.md`**
 
-```markdown
+````markdown
 # Siemens Oven Card
 
 A Home Assistant Lovelace card for Siemens ovens connected via the [Home Connect integration](https://www.home-assistant.io/integrations/home_connect/).
 
-Displays the oven's current heating program, timer, and preheat progress in a panel that matches the oven's physical display aesthetic.
+Displays the oven's current heating program, timer, and cooking progress in a panel that matches the oven's physical display aesthetic.
 
 ## Supported models
 
@@ -1623,6 +1615,14 @@ Displays the oven's current heating program, timer, and preheat progress in a pa
 2. Search for **Siemens Oven Card** → Download
 3. Add the card to your dashboard and configure your entity IDs
 
+## Manual installation (for testing)
+
+1. Copy `dist/siemens-oven-card.js` → `config/www/siemens-oven-card.js`
+2. Copy `dist/images/` → `config/www/siemens-oven-card/images/`
+3. Copy `dist/fonts/` → `config/www/siemens-oven-card/fonts/`
+4. Add `/local/siemens-oven-card.js` as a Lovelace resource (Settings → Dashboards → Resources)
+5. Use `resources_path: /local/siemens-oven-card` in your card config
+
 ## Configuration
 
 ```yaml
@@ -1632,18 +1632,18 @@ active_program_entity: select.oven_active_program
 remaining_time_entity: sensor.oven_remaining_program_time
 cavity_temp_entity: sensor.oven_current_oven_cavity_temperature
 program_progress_entity: sensor.oven_program_progress
-setpoint_temp_entity: number.oven_setpoint_temperature
 door_entity: sensor.oven_door
-name: Oven  # optional
+name: Oven            # optional
+resources_path: /hacsfiles/siemens-oven-card  # default — omit for HACS installs
 ```
 
-Rename each entity ID to match your oven. Find them in **Developer Tools → States** and filter by your oven's name.
+Rename each entity ID to match your oven. Find them in **Developer Tools → States**.
 
 ## Notes
 
-- The progress bar requires `sensor.oven_program_progress` to report a value while running. On some firmware versions this sensor stays unavailable — the card hides the bar gracefully in that case.
+- The progress bar is shown only when a duration timer is active (progress reports 0–99%). When no timer is set the bar is hidden.
 - The 7-segment font (© Jan Bobrowski, OFL) is bundled in the release.
-```
+````
 
 - [ ] **Step 3: Commit**
 
@@ -1662,7 +1662,7 @@ git commit -m "chore: add HACS manifest and README"
 npm test
 ```
 
-Expected: All tests PASS (timer + state suites).
+Expected: All tests PASS.
 
 - [ ] **Step 2: Run production build**
 
@@ -1675,15 +1675,15 @@ Expected: `dist/siemens-oven-card.js` created, no TypeScript errors, no rollup w
 - [ ] **Step 3: Verify dist/ structure**
 
 ```bash
-ls -la dist/
-ls -la dist/images/
-ls -la dist/fonts/
+ls dist/
+ls dist/images/
+ls dist/fonts/
 ```
 
 Expected:
 ```
-dist/siemens-oven-card.js   ← generated (not committed)
-dist/images/.gitkeep        ← placeholder (images added by developer)
+dist/siemens-oven-card.js   ← generated
+dist/images/                ← PNG images
 dist/fonts/7segment.woff    ← committed
 ```
 
@@ -1693,36 +1693,26 @@ dist/fonts/7segment.woff    ← committed
 wc -c dist/siemens-oven-card.js
 ```
 
-Expected: under 100KB (LitElement + card code minified).
+Expected: under 100KB.
 
-- [ ] **Step 5: Final commit**
+- [ ] **Step 5: Push to GitHub**
 
 ```bash
-git add .
-git status  # confirm only expected files
-git commit -m "chore: verified build and tests pass"
+git push origin main
 ```
 
 ---
 
-## Post-implementation: Add images
+## Post-implementation: First HACS release
 
-When the developer has prepared the oven background and 12 program icon PNGs:
+When images are committed and the card is tested manually:
 
 ```bash
-# Copy images into dist/images/
-cp ~/Downloads/oven-bg.png dist/images/
-cp ~/Downloads/hot-air.png dist/images/
-# ... repeat for all 12 program icons
-
-# Remove placeholder
-rm dist/images/.gitkeep
-
-git add dist/images/
-git commit -m "chore: add oven background and program icon images"
+git tag v0.1.0
+git push origin v0.1.0
 ```
 
-Then create the first GitHub release — HACS will pick up `dist/` automatically.
+Create a GitHub release from the tag. HACS will detect the release and make it installable via custom repository URL: `https://github.com/gregcy/siemens-oven-card`
 
 ---
 
@@ -1730,17 +1720,17 @@ Then create the first GitHub release — HACS will pick up `dist/` automatically
 
 **Spec coverage check:**
 - ✅ Three-zone layout (Tasks 8, 9, 10)
-- ✅ Progress bar with state-dependent gradient (Task 11)
-- ✅ Conditional details row (Task 12)
-- ✅ 12 program icon mappings in PROGRAM_ICON_MAP (Task 4)
-- ✅ Timer: remaining from ISO timestamp (Task 10, `_getTimerInfo`)
-- ✅ Timer: elapsed from `last_changed` when no remaining time (Task 10, `_getTimerInfo`)
-- ✅ Graceful degradation when `program_progress` unavailable (Task 11)
-- ✅ Visual editor (Task 13)
-- ✅ Images + font in `dist/` for HACS auto-install (Task 14)
-- ✅ `hacs.json` with `content_in_root: false` (Task 15)
-- ✅ All 8 operation states handled (Tasks 9, 10, 11, 12)
+- ✅ Progress bar shown only when progress 0–99 (Task 11)
+- ✅ Conditional details row: cavity temp, progress, door (Task 12)
+- ✅ 12 program icon mappings (Task 4)
+- ✅ Timer: remaining from ISO timestamp (Task 10)
+- ✅ Timer: elapsed from `last_changed` when no timer set (Task 10)
+- ✅ Progress bar hidden when `program_progress == 100` (no timer) (Task 6, 11)
+- ✅ Visual editor with 6 entity pickers + name + resources_path (Task 13)
+- ✅ `resources_path` for HACS vs manual install throughout (Tasks 3, 4, 7, 9, 10, 13)
+- ✅ Font injected dynamically via shadow DOM (Task 8)
+- ✅ All 7 operation states handled (Tasks 9, 10, 11, 12)
 - ✅ `setConfig` validation with clear error messages (Task 7)
-- ✅ Timer re-renders every 30s via `setInterval` + `_tick` property (Task 7)
-- ✅ `resources_path` config option for HACS vs manual installs (Tasks 3, 4, 7, 9, 10, 13)
-- ✅ Font injected dynamically via shadow DOM to respect `resources_path` (Task 10)
+- ✅ Timer re-renders every 30s (Task 7)
+- ✅ `number.oven_setpoint_temperature` excluded (always unavailable on this model)
+- ✅ `sensor.oven_pre_heat_finished` excluded (stays `off` in all running states — unreliable)

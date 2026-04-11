@@ -181,24 +181,25 @@ Maps `sensor.siemens_hb676g5s6_68a40e6a233e_active_program` state value to icon 
 
 | Entity State Value | Icon File | Display Label |
 |---|---|---|
-| `Cooking.Oven.Program.HeatingMode.HotAir` | `hot-air.png` | Hot Air |
-| `Cooking.Oven.Program.HeatingMode.TopBottomHeating` | `top-bottom.png` | Top / Bottom |
-| `Cooking.Oven.Program.HeatingMode.HotAirEco` | `hot-air-eco.png` | Hot Air Eco |
-| `Cooking.Oven.Program.HeatingMode.TopBottomHeatingEco` | `top-bottom-eco.png` | Top / Bottom Eco |
-| `Cooking.Oven.Program.HeatingMode.HotAirGrilling` | `hot-air-grill.png` | Hot Air Grill |
-| `Cooking.Oven.Program.HeatingMode.PizzaSetting` | `pizza.png` | Pizza |
-| `Cooking.Oven.Program.HeatingMode.SlowCook` | `slow-cook.png` | Slow Cook |
-| `Cooking.Oven.Program.HeatingMode.BottomHeating` | `bottom-heat.png` | Bottom Heat |
-| `Cooking.Oven.Program.HeatingMode.KeepWarm` | `keep-warm.png` | Keep Warm |
-| `Cooking.Oven.Program.HeatingMode.PreheatOvenware` | `preheat-ovenware.png` | Preheat Ovenware |
-| `Cooking.Oven.Program.HeatingMode.FrozenHeatupSpecial` | `frozen.png` | Frozen |
-| `Cooking.Oven.Program.HeatingMode.SabbathProgramme` | `sabbath.png` | Sabbath |
-| `Cooking.Oven.Program.HeatingMode.GrillLargeArea` | `grill-large.png` | Grill Large Area |
-| `Cooking.Oven.Program.HeatingMode.GrillSmallArea` | `grill-small.png` | Grill Small Area |
+| `Cooking.Oven.Program.HeatingMode.HotAir` | `hot-air.svg` | Hot Air |
+| `Cooking.Oven.Program.HeatingMode.TopBottomHeating` | `top-bottom.svg` | Top / Bottom |
+| `Cooking.Oven.Program.HeatingMode.HotAirEco` | `hot-air-eco.svg` | Hot Air Eco |
+| `Cooking.Oven.Program.HeatingMode.TopBottomHeatingEco` | `top-bottom-eco.svg` | Top / Bottom Eco |
+| `Cooking.Oven.Program.HeatingMode.HotAirGrilling` | `hot-air-grill.svg` | Hot Air Grill |
+| `Cooking.Oven.Program.HeatingMode.PizzaSetting` | `pizza.svg` | Pizza |
+| `Cooking.Oven.Program.HeatingMode.SlowCook` | `slow-cook.svg` | Slow Cook |
+| `Cooking.Oven.Program.HeatingMode.BottomHeating` | `bottom-heat.svg` | Bottom Heat |
+| `Cooking.Oven.Program.HeatingMode.KeepWarm` | `keep-warm.svg` | Keep Warm |
+| `Cooking.Oven.Program.HeatingMode.PreheatOvenware` | `preheat-ovenware.svg` | Preheat Ovenware |
+| `Cooking.Oven.Program.HeatingMode.FrozenHeatupSpecial` | `frozen.svg` | Frozen |
+| `Cooking.Oven.Program.HeatingMode.GrillLargeArea` | `grill-large.svg` | Grill Large Area |
+| `Cooking.Oven.Program.HeatingMode.GrillSmallArea` | `grill-small.svg` | Grill Small Area |
 
 If state is `unknown`/`unavailable` or not in the map: icon hidden.
 
 Note: `GrillLargeArea` and `GrillSmallArea` do not appear in the integration's program selector but are correctly reported by the `active_program` sensor when selected physically on the oven.
+
+Sabbath mode is a oven setting (`binary_sensor...cooking_oven_setting_sabbathmode`), not a cooking program — it is not included in the program icon map.
 
 ---
 

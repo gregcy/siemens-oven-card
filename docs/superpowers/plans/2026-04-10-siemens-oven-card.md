@@ -268,21 +268,20 @@ export const DEFAULT_RESOURCES_PATH = '/hacsfiles/siemens-oven-card';
 // Maps sensor...active_program state → icon filename in dist/images/
 // Keys are the full BSH enum values reported by home-connect-hass
 export const PROGRAM_ICON_MAP: Record<string, string> = {
-  'Cooking.Oven.Program.HeatingMode.HotAir': 'hot-air.png',
-  'Cooking.Oven.Program.HeatingMode.TopBottomHeating': 'top-bottom.png',
-  'Cooking.Oven.Program.HeatingMode.HotAirEco': 'hot-air-eco.png',
-  'Cooking.Oven.Program.HeatingMode.TopBottomHeatingEco': 'top-bottom-eco.png',
-  'Cooking.Oven.Program.HeatingMode.HotAirGrilling': 'hot-air-grill.png',
-  'Cooking.Oven.Program.HeatingMode.PizzaSetting': 'pizza.png',
-  'Cooking.Oven.Program.HeatingMode.SlowCook': 'slow-cook.png',
-  'Cooking.Oven.Program.HeatingMode.BottomHeating': 'bottom-heat.png',
-  'Cooking.Oven.Program.HeatingMode.KeepWarm': 'keep-warm.png',
-  'Cooking.Oven.Program.HeatingMode.PreheatOvenware': 'preheat-ovenware.png',
-  'Cooking.Oven.Program.HeatingMode.FrozenHeatupSpecial': 'frozen.png',
-  'Cooking.Oven.Program.HeatingMode.SabbathProgramme': 'sabbath.png',
+  'Cooking.Oven.Program.HeatingMode.HotAir': 'hot-air.svg',
+  'Cooking.Oven.Program.HeatingMode.TopBottomHeating': 'top-bottom.svg',
+  'Cooking.Oven.Program.HeatingMode.HotAirEco': 'hot-air-eco.svg',
+  'Cooking.Oven.Program.HeatingMode.TopBottomHeatingEco': 'top-bottom-eco.svg',
+  'Cooking.Oven.Program.HeatingMode.HotAirGrilling': 'hot-air-grill.svg',
+  'Cooking.Oven.Program.HeatingMode.PizzaSetting': 'pizza.svg',
+  'Cooking.Oven.Program.HeatingMode.SlowCook': 'slow-cook.svg',
+  'Cooking.Oven.Program.HeatingMode.BottomHeating': 'bottom-heat.svg',
+  'Cooking.Oven.Program.HeatingMode.KeepWarm': 'keep-warm.svg',
+  'Cooking.Oven.Program.HeatingMode.PreheatOvenware': 'preheat-ovenware.svg',
+  'Cooking.Oven.Program.HeatingMode.FrozenHeatupSpecial': 'frozen.svg',
   // Not in integration selector but correctly reported when selected on physical oven:
-  'Cooking.Oven.Program.HeatingMode.GrillLargeArea': 'grill-large.png',
-  'Cooking.Oven.Program.HeatingMode.GrillSmallArea': 'grill-small.png',
+  'Cooking.Oven.Program.HeatingMode.GrillLargeArea': 'grill-large.svg',
+  'Cooking.Oven.Program.HeatingMode.GrillSmallArea': 'grill-small.svg',
 };
 
 // Human-readable label shown below each program icon
@@ -298,7 +297,6 @@ export const PROGRAM_LABEL_MAP: Record<string, string> = {
   'Cooking.Oven.Program.HeatingMode.KeepWarm': 'Keep Warm',
   'Cooking.Oven.Program.HeatingMode.PreheatOvenware': 'Preheat Ovenware',
   'Cooking.Oven.Program.HeatingMode.FrozenHeatupSpecial': 'Frozen',
-  'Cooking.Oven.Program.HeatingMode.SabbathProgramme': 'Sabbath',
   'Cooking.Oven.Program.HeatingMode.GrillLargeArea': 'Grill Large Area',
   'Cooking.Oven.Program.HeatingMode.GrillSmallArea': 'Grill Small Area',
 };
@@ -1589,21 +1587,20 @@ cp ~/workspace/lg-washer-dryer-card/config/www/7segment.woff dist/fonts/7segment
 When image files are ready, copy them into `dist/images/`. Expected filenames:
 
 ```
-dist/images/oven-bg.png           (960×400px oven background)
-dist/images/hot-air.png           (128×128px, white fill, transparent bg)
-dist/images/top-bottom.png
-dist/images/hot-air-eco.png
-dist/images/top-bottom-eco.png
-dist/images/hot-air-grill.png
-dist/images/pizza.png
-dist/images/slow-cook.png
-dist/images/bottom-heat.png
-dist/images/keep-warm.png
-dist/images/preheat-ovenware.png
-dist/images/frozen.png
-dist/images/sabbath.png
-dist/images/grill-large.png
-dist/images/grill-small.png
+dist/images/oven-bg.png           (960×400px oven background — PNG)
+dist/images/hot-air.svg           (128×128px, white fill, transparent bg — SVG)
+dist/images/top-bottom.svg
+dist/images/hot-air-eco.svg
+dist/images/top-bottom-eco.svg
+dist/images/hot-air-grill.svg
+dist/images/pizza.svg
+dist/images/slow-cook.svg
+dist/images/bottom-heat.svg
+dist/images/keep-warm.svg
+dist/images/preheat-ovenware.svg
+dist/images/frozen.svg
+dist/images/grill-large.svg
+dist/images/grill-small.svg
 ```
 
 Icons can be SVG or PNG. SVG preferred — extracted from the oven manual in Inkscape with white fill and transparent background. Card applies green/amber tint via CSS filter.
@@ -1787,7 +1784,7 @@ Create a GitHub release from the tag. HACS will detect the release and make it i
 - ✅ Three-zone layout (Tasks 8, 9, 10)
 - ✅ Progress bar shown only when progress 0–99 (Task 11)
 - ✅ Conditional details row: setpoint temp, cavity temp, progress, door (Task 12)
-- ✅ 14 program icon mappings including GrillLargeArea + GrillSmallArea (Task 4)
+- ✅ 13 program icon mappings including GrillLargeArea + GrillSmallArea, SVG format (Task 4)
 - ✅ Timer: remaining from ISO timestamp (Task 10)
 - ✅ Timer: elapsed from elapsed_time entity when no timer set (Task 10)
 - ✅ Progress bar hidden when `program_progress == 100` (no timer) (Task 6, 11)

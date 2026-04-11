@@ -176,10 +176,10 @@ export class SiemensOvenCard extends LitElement {
 
     return html`
       <div class="details-row">
-        ${setpoint ? html`<span class="detail-item">🎯 ${setpoint}°C</span>` : nothing}
-        ${cavity ? html`<span class="detail-item">🌡 ${cavity}°C</span>` : nothing}
-        ${progress !== null ? html`<span class="detail-item">▓ ${progress}%</span>` : nothing}
-        ${doorLabel ? html`<span class="detail-item">🚪 ${doorLabel}</span>` : nothing}
+        ${setpoint ? html`<span class="detail-setpoint">${setpoint}°C</span>` : nothing}
+        ${cavity ? html`<span class="detail-item">${cavity}°C</span>` : nothing}
+        ${progress !== null ? html`<span class="detail-item">${progress}%</span>` : nothing}
+        ${doorLabel ? html`<span class="detail-item">${doorLabel}</span>` : nothing}
       </div>
     `;
   }
@@ -212,10 +212,7 @@ export class SiemensOvenCard extends LitElement {
 
     return html`
       <div class="zone-timer">
-        <div class="timer-display">
-          <span class="timer-ghost">88:88</span>
-          <span class="timer-value ${timer.colorClass}">${timer.display}</span>
-        </div>
+        <span class="timer-value ${timer.colorClass}">${timer.display}</span>
         ${timer.label
           ? html`<span class="timer-label">${timer.label}</span>`
           : nothing}
@@ -237,11 +234,11 @@ export class SiemensOvenCard extends LitElement {
   render() {
     if (!this._config || !this.hass) return nothing;
 
-    // Inject 7-segment font dynamically to respect resources_path
+    // Inject BoschSerif font dynamically to respect resources_path
     if (!this.shadowRoot!.querySelector('style[data-font]')) {
       const s = document.createElement('style');
       s.setAttribute('data-font', '');
-      s.textContent = `@font-face { font-family: 'segment7'; src: url('${this._resourcesPath}/fonts/7segment.woff') format('woff'); }`;
+      s.textContent = `@font-face { font-family: 'BoschSerif'; src: url('${this._resourcesPath}/fonts/BoschSerif-Regular.woff') format('woff'); }`;
       this.shadowRoot!.appendChild(s);
     }
 
@@ -316,16 +313,18 @@ export class SiemensOvenCard extends LitElement {
     .zone-icon {
       flex: 0 0 55%;
       display: flex;
-      flex-direction: column;
+      flex-direction: row;
       align-items: center;
       justify-content: center;
-      gap: 6px;
+      gap: 12px;
+      padding: 0 12px;
       overflow: hidden;
     }
 
     .program-icon {
-      width: 56px;
-      height: 56px;
+      width: 44px;
+      height: 44px;
+      flex-shrink: 0;
       image-rendering: crisp-edges;
     }
 
@@ -338,12 +337,10 @@ export class SiemensOvenCard extends LitElement {
     }
 
     .program-label {
-      font-size: 9px;
-      color: #888;
-      text-align: center;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-      padding: 0 4px;
+      font-family: 'BoschSerif', sans-serif;
+      font-size: 13px;
+      color: #fff;
+      line-height: 1.3;
     }
 
     .warning-icon {
@@ -360,32 +357,21 @@ export class SiemensOvenCard extends LitElement {
       gap: 4px;
     }
 
-    .timer-display {
-      position: relative;
-      font-family: 'segment7', 'Courier New', monospace;
+    .timer-value {
+      font-family: 'BoschSerif', sans-serif;
       font-size: 32px;
-      letter-spacing: 2px;
+      letter-spacing: 1px;
       line-height: 1;
     }
 
-    .timer-ghost {
-      color: #2a2a2a;
-      user-select: none;
-    }
-
-    .timer-value {
-      position: absolute;
-      left: 0;
-      top: 0;
-    }
-
-    .timer-value.green { color: #8df427; }
+    .timer-value.green { color: #fff; }
     .timer-value.amber { color: #f4a427; }
-    .timer-value.dim   { color: #444; }
+    .timer-value.dim   { color: #555; }
 
     .timer-label {
-      font-size: 9px;
-      color: #555;
+      font-family: 'BoschSerif', sans-serif;
+      font-size: 10px;
+      color: #888;
       text-transform: uppercase;
       letter-spacing: 1px;
     }
@@ -419,15 +405,23 @@ export class SiemensOvenCard extends LitElement {
     .details-row {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px 20px;
-      padding: 10px 14px;
+      align-items: baseline;
+      gap: 4px 24px;
+      padding: 10px 16px;
       background: #111;
       border-top: 1px solid #1a1a1a;
     }
 
+    .detail-setpoint {
+      font-family: 'BoschSerif', sans-serif;
+      font-size: 22px;
+      color: #fff;
+    }
+
     .detail-item {
-      font-size: 11px;
-      color: #888;
+      font-family: 'BoschSerif', sans-serif;
+      font-size: 12px;
+      color: #aaa;
     }
   `;
 }

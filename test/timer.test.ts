@@ -1,0 +1,79 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { formatTime, getRemainingSeconds, parseElapsedEntity } from '../src/timer';
+
+describe('formatTime', () => {
+  it('formats zero seconds as 00:00', () => {
+    expect(formatTime(0)).toBe('00:00');
+  });
+
+  it('formats 90 seconds as 00:01', () => {
+    expect(formatTime(90)).toBe('00:01');
+  });
+
+  it('formats 3600 seconds as 01:00', () => {
+    expect(formatTime(3600)).toBe('01:00');
+  });
+
+  it('formats 5400 seconds as 01:30', () => {
+    expect(formatTime(5400)).toBe('01:30');
+  });
+
+  it('pads single-digit minutes with leading zero', () => {
+    expect(formatTime(3660)).toBe('01:01');
+  });
+});
+
+describe('getRemainingSeconds', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-11T12:00:00Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('returns seconds until a future timestamp', () => {
+    const future = '2026-04-11T12:45:00Z';
+    expect(getRemainingSeconds(future)).toBe(45 * 60);
+  });
+
+  it('returns null for a past timestamp', () => {
+    const past = '2026-04-11T11:00:00Z';
+    expect(getRemainingSeconds(past)).toBeNull();
+  });
+
+  it('returns null for unavailable', () => {
+    expect(getRemainingSeconds('unavailable')).toBeNull();
+  });
+
+  it('returns null for unknown', () => {
+    expect(getRemainingSeconds('unknown')).toBeNull();
+  });
+});
+
+describe('parseElapsedEntity', () => {
+  it('normalises single-digit hours to two digits', () => {
+    expect(parseElapsedEntity('0:03')).toBe('00:03');
+  });
+
+  it('normalises h:mm with two-digit minutes', () => {
+    expect(parseElapsedEntity('1:45')).toBe('01:45');
+  });
+
+  it('passes through already-padded hh:mm', () => {
+    expect(parseElapsedEntity('02:30')).toBe('02:30');
+  });
+
+  it('returns --:-- for unavailable', () => {
+    expect(parseElapsedEntity('unavailable')).toBe('--:--');
+  });
+
+  it('returns --:-- for unknown', () => {
+    expect(parseElapsedEntity('unknown')).toBe('--:--');
+  });
+
+  it('returns --:-- for empty string', () => {
+    expect(parseElapsedEntity('')).toBe('--:--');
+  });
+});

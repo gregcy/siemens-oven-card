@@ -253,7 +253,7 @@ const ct=t=>(e,i)=>{void 0!==i?i.addInitializer(()=>{customElements.define(t,e)}
 
     .program-label {
       font-family: 'BoschSerif', sans-serif;
-      font-size: 12px;
+      font-size: 15px;
       color: #fff;
       line-height: 1.3;
     }

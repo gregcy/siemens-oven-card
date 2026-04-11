@@ -400,7 +400,7 @@ export class SiemensOvenCard extends LitElement {
 
     .program-label {
       font-family: 'BoschSerif', sans-serif;
-      font-size: 12px;
+      font-size: 15px;
       color: #fff;
       line-height: 1.3;
     }

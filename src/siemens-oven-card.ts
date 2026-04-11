@@ -10,6 +10,7 @@ import {
   showProgressBar,
 } from './state';
 import type { HomeAssistant, OperationState, SiemensOvenCardConfig, TimerInfo } from './types';
+import './editor';
 
 // Register card with HA's card picker
 (window as unknown as Record<string, unknown>)['customCards'] ??= [];

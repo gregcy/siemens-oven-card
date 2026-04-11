@@ -281,14 +281,13 @@ export class SiemensOvenCard extends LitElement {
     }
 
     .card-main {
-      display: flex;
+      position: relative;
       height: 160px;
     }
 
     .zone-image {
-      width: 45%;
-      flex-shrink: 0;
-      overflow: hidden;
+      position: absolute;
+      inset: 0;
     }
 
     .zone-image img {
@@ -299,10 +298,14 @@ export class SiemensOvenCard extends LitElement {
     }
 
     .right-panel {
-      flex: 1;
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 55%;
       display: flex;
       flex-direction: column;
-      background: #0e0e0e;
+      background: transparent;
     }
 
     .zones-row {
@@ -317,7 +320,6 @@ export class SiemensOvenCard extends LitElement {
       align-items: center;
       justify-content: center;
       gap: 6px;
-      border-right: 1px solid #1a1a1a;
       overflow: hidden;
     }
 

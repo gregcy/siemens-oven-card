@@ -98,12 +98,68 @@ export class SiemensOvenCard extends LitElement {
 
   render() {
     if (!this._config || !this.hass) return nothing;
-    return html`<ha-card><p>Siemens Oven Card skeleton</p></ha-card>`;
+
+    // Inject 7-segment font dynamically to respect resources_path
+    if (!this.shadowRoot!.querySelector('style[data-font]')) {
+      const s = document.createElement('style');
+      s.setAttribute('data-font', '');
+      s.textContent = `@font-face { font-family: 'segment7'; src: url('${this._resourcesPath}/fonts/7segment.woff') format('woff'); }`;
+      this.shadowRoot!.appendChild(s);
+    }
+
+    const opState = getOperationState(this.hass, this._config);
+
+    return html`
+      <ha-card>
+        <div class="card-main">
+          <div class="zone-image">
+            <img
+              src="${this._resourcesPath}/images/oven-bg.png"
+              alt="${this._config.name ?? 'Oven'}"
+            />
+          </div>
+          <div class="right-panel">
+            <!-- Zones 2 + 3 and progress bar added in later tasks -->
+          </div>
+        </div>
+      </ha-card>
+    `;
   }
 
   static styles = css`
     :host {
       display: block;
+    }
+
+    ha-card {
+      overflow: hidden;
+      padding: 0;
+      background: #0e0e0e;
+    }
+
+    .card-main {
+      display: flex;
+      height: 160px;
+    }
+
+    .zone-image {
+      width: 45%;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .zone-image img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .right-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #0e0e0e;
     }
   `;
 }

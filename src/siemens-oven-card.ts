@@ -120,6 +120,56 @@ export class SiemensOvenCard extends LitElement {
     `;
   }
 
+  private _getTimerInfo(opState: OperationState): TimerInfo {
+    if (
+      opState === 'inactive' ||
+      opState === 'finished' ||
+      opState === 'aborting' ||
+      opState === 'error' ||
+      opState === 'actionrequired'
+    ) {
+      return { display: '--:--', label: '', colorClass: 'dim' };
+    }
+
+    // run or pause: try remaining time first — shown when progress is 0-99 (timer active)
+    const remaining = getRemainingSeconds(
+      this.hass.states[this._config.remaining_time_entity]?.state ?? ''
+    );
+    if (remaining !== null) {
+      return {
+        display: formatTime(remaining),
+        label: opState === 'pause' ? 'paused' : 'remaining',
+        colorClass: 'green',
+      };
+    }
+
+    // No timer set (progress === 100) — use elapsed time entity directly
+    // home-connect-hass reports elapsed as h:mm (e.g. "0:03")
+    const elapsedRaw = this.hass.states[this._config.elapsed_time_entity]?.state ?? '';
+    return {
+      display: parseElapsedEntity(elapsedRaw),
+      label: opState === 'pause' ? 'paused' : 'elapsed',
+      colorClass: opState === 'pause' ? 'amber' : 'green',
+    };
+  }
+
+  private _renderZone3(opState: OperationState) {
+    void this._tick; // Reference _tick so LitElement re-renders on interval
+    const timer = this._getTimerInfo(opState);
+
+    return html`
+      <div class="zone-timer">
+        <div class="timer-display">
+          <span class="timer-ghost">88:88</span>
+          <span class="timer-value ${timer.colorClass}">${timer.display}</span>
+        </div>
+        ${timer.label
+          ? html`<span class="timer-label">${timer.label}</span>`
+          : nothing}
+      </div>
+    `;
+  }
+
   connectedCallback(): void {
     super.connectedCallback();
     // Refresh every 30s so elapsed/remaining timers stay accurate
@@ -156,7 +206,7 @@ export class SiemensOvenCard extends LitElement {
           <div class="right-panel">
             <div class="zones-row">
               ${this._renderZone2(opState)}
-              <div class="zone-timer"></div>
+              ${this._renderZone3(opState)}
             </div>
           </div>
         </div>
@@ -251,6 +301,36 @@ export class SiemensOvenCard extends LitElement {
       align-items: center;
       justify-content: center;
       gap: 4px;
+    }
+
+    .timer-display {
+      position: relative;
+      font-family: 'segment7', 'Courier New', monospace;
+      font-size: 32px;
+      letter-spacing: 2px;
+      line-height: 1;
+    }
+
+    .timer-ghost {
+      color: #2a2a2a;
+      user-select: none;
+    }
+
+    .timer-value {
+      position: absolute;
+      left: 0;
+      top: 0;
+    }
+
+    .timer-value.green { color: #8df427; }
+    .timer-value.amber { color: #f4a427; }
+    .timer-value.dim   { color: #444; }
+
+    .timer-label {
+      font-size: 9px;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 1px;
     }
   `;
 }

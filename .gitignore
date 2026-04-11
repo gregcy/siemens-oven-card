@@ -3,3 +3,4 @@ dist/siemens-oven-card.js
 dist-tsc/
 .DS_Store
 .superpowers/
+.worktrees/

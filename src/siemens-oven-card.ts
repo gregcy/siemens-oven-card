@@ -153,6 +153,28 @@ export class SiemensOvenCard extends LitElement {
     };
   }
 
+  private _renderProgressBar(opState: OperationState) {
+    if (!showProgressBar(this.hass, this._config, opState)) {
+      return html`<div class="progress-bar-spacer"></div>`;
+    }
+
+    const progress = getProgressPercent(this.hass, this._config)!;
+    const barClass = opState === 'pause' ? 'bar-run bar-paused' : 'bar-run';
+
+    return html`
+      <div class="progress-bar-container">
+        <div
+          class="progress-bar ${barClass}"
+          style="width: ${progress}%"
+          role="progressbar"
+          aria-valuenow="${progress}"
+          aria-valuemin="0"
+          aria-valuemax="100"
+        ></div>
+      </div>
+    `;
+  }
+
   private _renderZone3(opState: OperationState) {
     void this._tick; // Reference _tick so LitElement re-renders on interval
     const timer = this._getTimerInfo(opState);
@@ -208,6 +230,7 @@ export class SiemensOvenCard extends LitElement {
               ${this._renderZone2(opState)}
               ${this._renderZone3(opState)}
             </div>
+            ${this._renderProgressBar(opState)}
           </div>
         </div>
       </ha-card>
@@ -331,6 +354,32 @@ export class SiemensOvenCard extends LitElement {
       color: #555;
       text-transform: uppercase;
       letter-spacing: 1px;
+    }
+
+    .progress-bar-container {
+      height: 6px;
+      background: #1a1a1a;
+      margin: 0 12px 10px;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+
+    .bar-run {
+      background: linear-gradient(90deg, #3a8f00, #8df427);
+    }
+
+    .bar-paused {
+      opacity: 0.5;
+    }
+
+    .progress-bar-spacer {
+      height: 16px;
     }
   `;
 }

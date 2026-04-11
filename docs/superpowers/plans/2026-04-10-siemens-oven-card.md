@@ -1752,6 +1752,22 @@ git push origin main
 
 ---
 
+## Post-implementation: Manual testing checklist
+
+Before tagging a release, verify these behaviours in HA with the real oven:
+
+- [ ] **Elapsed time entity behaviour** — We observed `elapsed_time_entity` reporting `0:01` during preheating which seemed too low, and it was unclear whether it resets when a timer is added or counts continuously from program start. After implementing, test:
+  - Start oven with no timer — does elapsed count up correctly over several minutes?
+  - Add a timer mid-session — does elapsed reset or continue from where it was?
+  - If elapsed resets when a timer is added, the "no timer" elapsed display is unreliable and we should fall back to calculating elapsed from `operation_state.last_changed` instead
+- [ ] Remaining time counts down correctly with a timer set
+- [ ] Progress bar appears/disappears correctly when toggling timer on/off
+- [ ] Setpoint temp shows correctly in details row
+- [ ] Door state shows "open"/"closed" correctly when opened during cooking
+- [ ] GrillLargeArea and GrillSmallArea icons display when those programs are active
+
+---
+
 ## Post-implementation: First HACS release
 
 When images are committed and the card is tested manually:

@@ -2,6 +2,7 @@
   "name": "siemens-oven-card",
   "version": "0.1.0",
   "description": "Home Assistant Lovelace card for Siemens Home Connect ovens",
+  "type": "module",
   "scripts": {
     "build": "rollup -c rollup.config.js",
     "dev": "rollup -c rollup.config.js --watch",

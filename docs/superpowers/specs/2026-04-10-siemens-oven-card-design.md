@@ -1,7 +1,7 @@
 # Siemens Oven Card — Design Spec
 
 **Date:** 2026-04-10
-**Updated:** 2026-04-11 (live sensor data confirmed — all three running states verified)
+**Updated:** 2026-04-11 (migrated to home-connect-hass alternative integration — entity IDs and state value formats updated)
 **Status:** Approved
 
 ---
@@ -19,6 +19,7 @@ Designed as a proper custom Lovelace element (Web Component) for distribution vi
 - **New standalone repo:** `siemens-oven-card` (separate from the LG washer/dryer repo, which inspired the visual concept)
 - **Target appliance:** Siemens HB676G5S6 (expected to work on any Home Connect oven)
 - **Distribution:** HACS Frontend store
+- **Required HA integration:** [home-connect-hass](https://github.com/ekutner/home-connect-hass) (alternative integration — the official Home Connect integration is missing grill programs and has unreliable setpoint temp)
 
 ---
 
@@ -102,30 +103,38 @@ The card is a single component rendered as a custom element. Layout is three zon
 Shown below the main card when `operation_state` is `run` or `pause`. Hidden otherwise.
 
 Contains:
-- Cavity temperature (`sensor.oven_current_oven_cavity_temperature`)
+- Setpoint temperature (`sensor.siemens_hb676g5s6_68a40e6a233e_cooking_oven_option_setpointtemperature`)
+- Cavity temperature (`sensor.siemens_hb676g5s6_68a40e6a233e_cooking_oven_status_currentcavitytemperature`)
 - Program progress % (only shown when value is 0–99)
-- Door state (`sensor.oven_door`)
+- Door state (`binary_sensor.siemens_hb676g5s6_68a40e6a233e_bsh_common_status_doorstate`, `off` = closed, `on` = open)
 
 ---
 
 ## State Logic
 
-### Confirmed Sensor Behaviour (live testing on HB676G5S6)
+### Confirmed Sensor Behaviour (live testing on HB676G5S6 with home-connect-hass)
 
-| Scenario | `operation_state` | `pre_heat_finished` | `remaining_time` | `program_progress` | cavity temp |
+All entity IDs use the prefix `siemens_hb676g5s6_68a40e6a233e` (the device serial). Users rename these to match their own device.
+
+Operation state values are full BSH enum strings: `BSH.Common.EnumType.OperationState.Run`. The card extracts the last segment and lowercases it (`Run` → `run`) for internal state comparison.
+
+Program values are CamelCase with dots: `Cooking.Oven.Program.HeatingMode.HotAir`. Used directly as icon map keys.
+
+| Scenario | `operation_state` | `remaining_time` | `program_progress` | `elapsed_time` | setpoint temp |
 |---|---|---|---|---|---|
-| Off/idle | `inactive` | — | `unavailable` | `unavailable` | 60°C (ambient) |
-| Preheating, no timer | `run` | `off` | `unknown` | `100` | rising |
-| Preheating, with timer | `run` | `off` | valid timestamp | 0–99 | rising |
-| Cooking, with timer | `run` | `off` | valid timestamp | 0–99 | at/above setpoint |
-| Cooking, no timer | `run` | `off` | `unknown` | `100` | at/above setpoint |
+| Off/idle | `...Inactive` | absent | absent | absent | absent |
+| Preheating/cooking, no timer | `...Run` | past timestamp | `100` | counting up (`h:mm`) | valid (e.g. `160`) |
+| Preheating/cooking, with timer | `...Run` | future ISO timestamp | `0–99` | counting up (`h:mm`) | valid (e.g. `160`) |
 
 **Key findings from live data:**
-- The oven never enters `ready` state — it goes directly to `run`
-- `sensor.oven_pre_heat_finished` stays `off` throughout ALL running states (preheating AND cooking) — not usable for preheat detection
-- `sensor.oven_program_progress` = `100` whenever no timer is set (meaningless); reports real 0–99 when a timer is active
-- `number.oven_setpoint_temperature` stays `unavailable` in all running states — removed from card
+- The oven never enters `ready` state — it goes directly to `Run`
+- `program_progress` = `100` whenever no timer is set (meaningless sentinel); reports real 0–99 when a timer is active
+- `remaining_program_time` always exists when running — detect "no timer" by `progress === 100` OR timestamp is in the past
+- `elapsed_program_time` reports `h:mm` (e.g. `0:03`) directly — no calculation needed
+- `setpoint_temperature` works reliably in all running states (fixed vs official integration)
+- Door is a `binary_sensor` — `off` = closed, `on` = open (no `locked` state exposed)
 - **Preheat cannot be distinguished from cooking** with available sensors — the design uses a single unified "running" state
+- `Cooking.Oven.Program.HeatingMode.GrillLargeArea` and `GrillSmallArea` are not in the integration's program selector list but are correctly reported by `active_program` sensor when selected on the physical oven
 
 ### Operation State Table
 
@@ -141,21 +150,21 @@ Contains:
 
 ### Timer Calculation
 
-**Remaining time** — when `sensor.oven_remaining_program_time` is a future ISO 8601 timestamp:
+**Remaining time** — when `program_progress` is 0–99 (timer active):
 ```
-remaining_seconds = finish_timestamp - now()
+remaining_seconds = finish_timestamp - now()   // finish_timestamp from remaining_program_time entity
 display = floor(remaining_seconds / 3600) + ":" + pad(floor((remaining_seconds % 3600) / 60))
 label = "remaining"
 ```
 
-**Elapsed time** — when `remaining_program_time` is `unavailable` or `unknown` (no timer set):
+**Elapsed time** — when `program_progress` is 100 (no timer set):
 ```
-elapsed_seconds = now() - sensor.oven_operation_state.last_changed
-display = floor(elapsed_seconds / 3600) + ":" + pad(floor((elapsed_seconds % 3600) / 60))
+// Use elapsed_program_time entity directly — reports h:mm (e.g. "0:03")
+display = normalize to hh:mm (pad hours to 2 digits)
 label = "elapsed"
 ```
 
-The card refreshes every 30 seconds via a `setInterval` so both displays stay accurate.
+The card refreshes every 30 seconds via a `setInterval` so remaining time stays accurate.
 
 ### Progress Bar
 
@@ -168,24 +177,28 @@ The card refreshes every 30 seconds via a `setInterval` so both displays stay ac
 
 ### Program Icon Mapping
 
-Maps `select.oven_active_program` state value to icon filename:
+Maps `sensor.siemens_hb676g5s6_68a40e6a233e_active_program` state value to icon filename:
 
 | Entity State Value | Icon File | Display Label |
 |---|---|---|
-| `cooking_oven_program_heating_mode_hot_air` | `hot-air.png` | Hot Air |
-| `cooking_oven_program_heating_mode_top_bottom_heating` | `top-bottom.png` | Top / Bottom |
-| `cooking_oven_program_heating_mode_hot_air_eco` | `hot-air-eco.png` | Hot Air Eco |
-| `cooking_oven_program_heating_mode_top_bottom_heating_eco` | `top-bottom-eco.png` | Top / Bottom Eco |
-| `cooking_oven_program_heating_mode_hot_air_grilling` | `hot-air-grill.png` | Hot Air Grill |
-| `cooking_oven_program_heating_mode_pizza_setting` | `pizza.png` | Pizza |
-| `cooking_oven_program_heating_mode_slow_cook` | `slow-cook.png` | Slow Cook |
-| `cooking_oven_program_heating_mode_bottom_heating` | `bottom-heat.png` | Bottom Heat |
-| `cooking_oven_program_heating_mode_keep_warm` | `keep-warm.png` | Keep Warm |
-| `cooking_oven_program_heating_mode_preheat_ovenware` | `preheat-ovenware.png` | Preheat Ovenware |
-| `cooking_oven_program_heating_mode_frozen_heatup_special` | `frozen.png` | Frozen |
-| `cooking_oven_program_heating_mode_sabbath_programme` | `sabbath.png` | Sabbath |
+| `Cooking.Oven.Program.HeatingMode.HotAir` | `hot-air.png` | Hot Air |
+| `Cooking.Oven.Program.HeatingMode.TopBottomHeating` | `top-bottom.png` | Top / Bottom |
+| `Cooking.Oven.Program.HeatingMode.HotAirEco` | `hot-air-eco.png` | Hot Air Eco |
+| `Cooking.Oven.Program.HeatingMode.TopBottomHeatingEco` | `top-bottom-eco.png` | Top / Bottom Eco |
+| `Cooking.Oven.Program.HeatingMode.HotAirGrilling` | `hot-air-grill.png` | Hot Air Grill |
+| `Cooking.Oven.Program.HeatingMode.PizzaSetting` | `pizza.png` | Pizza |
+| `Cooking.Oven.Program.HeatingMode.SlowCook` | `slow-cook.png` | Slow Cook |
+| `Cooking.Oven.Program.HeatingMode.BottomHeating` | `bottom-heat.png` | Bottom Heat |
+| `Cooking.Oven.Program.HeatingMode.KeepWarm` | `keep-warm.png` | Keep Warm |
+| `Cooking.Oven.Program.HeatingMode.PreheatOvenware` | `preheat-ovenware.png` | Preheat Ovenware |
+| `Cooking.Oven.Program.HeatingMode.FrozenHeatupSpecial` | `frozen.png` | Frozen |
+| `Cooking.Oven.Program.HeatingMode.SabbathProgramme` | `sabbath.png` | Sabbath |
+| `Cooking.Oven.Program.HeatingMode.GrillLargeArea` | `grill-large.png` | Grill Large Area |
+| `Cooking.Oven.Program.HeatingMode.GrillSmallArea` | `grill-small.png` | Grill Small Area |
 
 If state is `unknown`/`unavailable` or not in the map: icon hidden.
+
+Note: `GrillLargeArea` and `GrillSmallArea` do not appear in the integration's program selector but are correctly reported by the `active_program` sensor when selected physically on the oven.
 
 ---
 
@@ -196,13 +209,15 @@ If state is `unknown`/`unavailable` or not in the map: icon hidden.
 ```yaml
 type: custom:siemens-oven-card
 
-# Required — rename to match your oven entities
-operation_state_entity: sensor.oven_operation_state
-active_program_entity: select.oven_active_program
-remaining_time_entity: sensor.oven_remaining_program_time
-cavity_temp_entity: sensor.oven_current_oven_cavity_temperature
-program_progress_entity: sensor.oven_program_progress
-door_entity: sensor.oven_door
+# Required — rename the prefix to match your oven's device serial
+operation_state_entity: sensor.siemens_hb676g5s6_68a40e6a233e_bsh_common_status_operationstate
+active_program_entity: sensor.siemens_hb676g5s6_68a40e6a233e_active_program
+remaining_time_entity: sensor.siemens_hb676g5s6_68a40e6a233e_bsh_common_option_remainingprogramtime
+elapsed_time_entity: sensor.siemens_hb676g5s6_68a40e6a233e_bsh_common_option_elapsedprogramtime
+cavity_temp_entity: sensor.siemens_hb676g5s6_68a40e6a233e_cooking_oven_status_currentcavitytemperature
+setpoint_temp_entity: sensor.siemens_hb676g5s6_68a40e6a233e_cooking_oven_option_setpointtemperature
+program_progress_entity: sensor.siemens_hb676g5s6_68a40e6a233e_bsh_common_option_programprogress
+door_entity: binary_sensor.siemens_hb676g5s6_68a40e6a233e_bsh_common_status_doorstate
 
 # Optional
 name: Oven
@@ -229,13 +244,15 @@ All asset paths (images, font) are constructed as `${resources_path}/images/<fil
 
 ```typescript
 interface SiemensOvenCardConfig {
-  // Required entity IDs — rename to match your oven
+  // Required entity IDs — rename prefix to match your oven's device serial
   operation_state_entity: string;
   active_program_entity: string;
   remaining_time_entity: string;
+  elapsed_time_entity: string;
   cavity_temp_entity: string;
+  setpoint_temp_entity: string;
   program_progress_entity: string;
-  door_entity: string;
+  door_entity: string;  // binary_sensor — off=closed, on=open
   // Optional
   name?: string;
   resources_path?: string;  // default: '/hacsfiles/siemens-oven-card'
@@ -244,7 +261,7 @@ interface SiemensOvenCardConfig {
 
 ### Visual Editor
 
-The card implements `LovelaceCardEditor` so users can configure all entity fields via the HA GUI without touching YAML. The editor presents labelled entity picker fields for each required entity, an optional name field, and an optional resources path field for manual installs.
+The card implements `LovelaceCardEditor` so users can configure all entity fields via the HA GUI without touching YAML. The editor presents labelled entity picker fields for each required entity (8 fields), an optional name field, and an optional resources path field for manual installs.
 
 ---
 
@@ -255,7 +272,7 @@ All images are provided by the developer (not auto-generated):
 | File | Spec |
 |------|------|
 | `oven-bg.png` | 960×400px, PNG, RGBA. Oven front-facing photo, appliance on left ~50% of frame, dark/neutral background on right |
-| Program icons (×12) | PNG, RGBA, consistent size (recommend 128×128px). Match the physical icons shown on the HB676G5S6 oven display |
+| Program icons (×14) | SVG or PNG, RGBA, consistent size (recommend 128×128px). White fill, transparent background — card applies green/amber tint via CSS. Match the physical icons shown on the HB676G5S6 oven display |
 
 Images live in `dist/images/` and are committed to the repo so they are included in HACS releases automatically.
 
@@ -263,18 +280,21 @@ Images live in `dist/images/` and are committed to the repo so they are included
 
 ## Entities Used
 
+All entities use prefix `sensor.siemens_hb676g5s6_68a40e6a233e_` or `binary_sensor.siemens_hb676g5s6_68a40e6a233e_`. Users rename to match their device serial.
+
 | Entity | Required | Notes |
 |--------|----------|-------|
-| `sensor.oven_operation_state` | Yes | States: `inactive`, `run`, `pause`, `finished`, `error`, `actionrequired`, `aborting`. Never enters `ready` on HB676G5S6. |
-| `select.oven_active_program` | Yes | Values: `cooking_oven_program_heating_mode_*`. Reports correctly while running. |
-| `sensor.oven_remaining_program_time` | Yes | ISO 8601 future timestamp when timer active; `unknown` when no timer set. |
-| `sensor.oven_current_oven_cavity_temperature` | Yes | Float °C, reliable in all states. |
-| `sensor.oven_program_progress` | Yes | 0–99 when timer active and running; `100` when no timer (hidden); `unavailable` when idle. |
-| `sensor.oven_door` | Yes | States: `open`, `closed`, `locked`. |
+| `sensor...bsh_common_status_operationstate` | Yes | Full enum: `BSH.Common.EnumType.OperationState.Run` etc. Card extracts last segment + lowercases. Never enters `Ready` on HB676G5S6. |
+| `sensor...active_program` | Yes | Full enum: `Cooking.Oven.Program.HeatingMode.HotAir` etc. Used directly as icon map keys. |
+| `sensor...bsh_common_option_remainingprogramtime` | Yes | ISO 8601 future timestamp when timer active; past timestamp when no timer set. |
+| `sensor...bsh_common_option_elapsedprogramtime` | Yes | `h:mm` format (e.g. `0:03`). Counts from program start. Used for elapsed display when no timer set. |
+| `sensor...cooking_oven_status_currentcavitytemperature` | Yes | Float °C, reliable in all states. |
+| `sensor...cooking_oven_option_setpointtemperature` | Yes | Integer °C. Reliable in all running states (fixed vs official integration). |
+| `sensor...bsh_common_option_programprogress` | Yes | 0–99 when timer active; `100` when no timer (hidden); absent when idle. |
+| `binary_sensor...bsh_common_status_doorstate` | Yes | `off` = closed, `on` = open. No `locked` state exposed. |
 
-**Excluded from original design (confirmed unavailable/unreliable):**
-- `number.oven_setpoint_temperature` — `unavailable` in all running states
-- `sensor.oven_pre_heat_finished` — stays `off` throughout all running states; cannot distinguish preheating from cooking
+**Excluded:**
+- `sensor.oven_pre_heat_finished` — not exposed by home-connect-hass; preheat detection not possible
 
 ---
 

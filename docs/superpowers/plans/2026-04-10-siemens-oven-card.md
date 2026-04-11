@@ -4,7 +4,7 @@
 
 **Goal:** Build a standalone HACS custom Lovelace card for Siemens Home Connect ovens — a LitElement web component displaying the oven image, active program icon, timer, and progress bar.
 
-**Architecture:** A TypeScript LitElement card compiled by Rollup into a single `dist/siemens-oven-card.js`. All images (oven background + 12 program icons) live in `dist/images/` so HACS installs them automatically. Pure logic functions (timer calculation, state mapping) are split into their own modules for testability with Vitest.
+**Architecture:** A TypeScript LitElement card compiled by Rollup into a single `dist/siemens-oven-card.js`. All images (oven background + 14 program icons) live in `dist/images/` so HACS installs them automatically. Pure logic functions (timer calculation, state mapping) are split into their own modules for testability with Vitest. Requires the [home-connect-hass](https://github.com/ekutner/home-connect-hass) alternative integration.
 
 **Tech Stack:** LitElement 3, TypeScript 5, Rollup 4, Vitest 1, Home Connect integration entities
 
@@ -210,13 +210,15 @@ export interface HomeAssistant {
 }
 
 export interface SiemensOvenCardConfig {
-  // Required entity IDs — rename to match your oven
+  // Required entity IDs — rename prefix to match your oven's device serial
   operation_state_entity: string;
   active_program_entity: string;
   remaining_time_entity: string;
+  elapsed_time_entity: string;
   cavity_temp_entity: string;
+  setpoint_temp_entity: string;
   program_progress_entity: string;
-  door_entity: string;
+  door_entity: string; // binary_sensor — off=closed, on=open
   // Optional
   name?: string;
   resources_path?: string; // default: '/hacsfiles/siemens-oven-card' — override for manual installs
@@ -263,36 +265,42 @@ export const CARD_VERSION = '0.1.0';
 // Override with config.resources_path for manual installs (/local/siemens-oven-card).
 export const DEFAULT_RESOURCES_PATH = '/hacsfiles/siemens-oven-card';
 
-// Maps select.oven_active_program state → icon filename in dist/images/
+// Maps sensor...active_program state → icon filename in dist/images/
+// Keys are the full BSH enum values reported by home-connect-hass
 export const PROGRAM_ICON_MAP: Record<string, string> = {
-  cooking_oven_program_heating_mode_hot_air: 'hot-air.png',
-  cooking_oven_program_heating_mode_top_bottom_heating: 'top-bottom.png',
-  cooking_oven_program_heating_mode_hot_air_eco: 'hot-air-eco.png',
-  cooking_oven_program_heating_mode_top_bottom_heating_eco: 'top-bottom-eco.png',
-  cooking_oven_program_heating_mode_hot_air_grilling: 'hot-air-grill.png',
-  cooking_oven_program_heating_mode_pizza_setting: 'pizza.png',
-  cooking_oven_program_heating_mode_slow_cook: 'slow-cook.png',
-  cooking_oven_program_heating_mode_bottom_heating: 'bottom-heat.png',
-  cooking_oven_program_heating_mode_keep_warm: 'keep-warm.png',
-  cooking_oven_program_heating_mode_preheat_ovenware: 'preheat-ovenware.png',
-  cooking_oven_program_heating_mode_frozen_heatup_special: 'frozen.png',
-  cooking_oven_program_heating_mode_sabbath_programme: 'sabbath.png',
+  'Cooking.Oven.Program.HeatingMode.HotAir': 'hot-air.png',
+  'Cooking.Oven.Program.HeatingMode.TopBottomHeating': 'top-bottom.png',
+  'Cooking.Oven.Program.HeatingMode.HotAirEco': 'hot-air-eco.png',
+  'Cooking.Oven.Program.HeatingMode.TopBottomHeatingEco': 'top-bottom-eco.png',
+  'Cooking.Oven.Program.HeatingMode.HotAirGrilling': 'hot-air-grill.png',
+  'Cooking.Oven.Program.HeatingMode.PizzaSetting': 'pizza.png',
+  'Cooking.Oven.Program.HeatingMode.SlowCook': 'slow-cook.png',
+  'Cooking.Oven.Program.HeatingMode.BottomHeating': 'bottom-heat.png',
+  'Cooking.Oven.Program.HeatingMode.KeepWarm': 'keep-warm.png',
+  'Cooking.Oven.Program.HeatingMode.PreheatOvenware': 'preheat-ovenware.png',
+  'Cooking.Oven.Program.HeatingMode.FrozenHeatupSpecial': 'frozen.png',
+  'Cooking.Oven.Program.HeatingMode.SabbathProgramme': 'sabbath.png',
+  // Not in integration selector but correctly reported when selected on physical oven:
+  'Cooking.Oven.Program.HeatingMode.GrillLargeArea': 'grill-large.png',
+  'Cooking.Oven.Program.HeatingMode.GrillSmallArea': 'grill-small.png',
 };
 
 // Human-readable label shown below each program icon
 export const PROGRAM_LABEL_MAP: Record<string, string> = {
-  cooking_oven_program_heating_mode_hot_air: 'Hot Air',
-  cooking_oven_program_heating_mode_top_bottom_heating: 'Top / Bottom',
-  cooking_oven_program_heating_mode_hot_air_eco: 'Hot Air Eco',
-  cooking_oven_program_heating_mode_top_bottom_heating_eco: 'Top / Bottom Eco',
-  cooking_oven_program_heating_mode_hot_air_grilling: 'Hot Air Grill',
-  cooking_oven_program_heating_mode_pizza_setting: 'Pizza',
-  cooking_oven_program_heating_mode_slow_cook: 'Slow Cook',
-  cooking_oven_program_heating_mode_bottom_heating: 'Bottom Heat',
-  cooking_oven_program_heating_mode_keep_warm: 'Keep Warm',
-  cooking_oven_program_heating_mode_preheat_ovenware: 'Preheat Ovenware',
-  cooking_oven_program_heating_mode_frozen_heatup_special: 'Frozen',
-  cooking_oven_program_heating_mode_sabbath_programme: 'Sabbath',
+  'Cooking.Oven.Program.HeatingMode.HotAir': 'Hot Air',
+  'Cooking.Oven.Program.HeatingMode.TopBottomHeating': 'Top / Bottom',
+  'Cooking.Oven.Program.HeatingMode.HotAirEco': 'Hot Air Eco',
+  'Cooking.Oven.Program.HeatingMode.TopBottomHeatingEco': 'Top / Bottom Eco',
+  'Cooking.Oven.Program.HeatingMode.HotAirGrilling': 'Hot Air Grill',
+  'Cooking.Oven.Program.HeatingMode.PizzaSetting': 'Pizza',
+  'Cooking.Oven.Program.HeatingMode.SlowCook': 'Slow Cook',
+  'Cooking.Oven.Program.HeatingMode.BottomHeating': 'Bottom Heat',
+  'Cooking.Oven.Program.HeatingMode.KeepWarm': 'Keep Warm',
+  'Cooking.Oven.Program.HeatingMode.PreheatOvenware': 'Preheat Ovenware',
+  'Cooking.Oven.Program.HeatingMode.FrozenHeatupSpecial': 'Frozen',
+  'Cooking.Oven.Program.HeatingMode.SabbathProgramme': 'Sabbath',
+  'Cooking.Oven.Program.HeatingMode.GrillLargeArea': 'Grill Large Area',
+  'Cooking.Oven.Program.HeatingMode.GrillSmallArea': 'Grill Small Area',
 };
 ```
 
@@ -315,7 +323,7 @@ git commit -m "feat: add program icon and label maps"
 
 ```typescript
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { formatTime, getRemainingSeconds, getElapsedSeconds } from '../src/timer';
+import { formatTime, getRemainingSeconds, parseElapsedEntity } from '../src/timer';
 
 describe('formatTime', () => {
   it('formats zero seconds as 00:00', () => {
@@ -368,28 +376,29 @@ describe('getRemainingSeconds', () => {
   });
 });
 
-describe('getElapsedSeconds', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-04-11T12:00:00Z'));
+describe('parseElapsedEntity', () => {
+  it('normalises single-digit hours to two digits', () => {
+    expect(parseElapsedEntity('0:03')).toBe('00:03');
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
+  it('normalises h:mm with two-digit minutes', () => {
+    expect(parseElapsedEntity('1:45')).toBe('01:45');
   });
 
-  it('returns seconds elapsed since a past timestamp', () => {
-    const past = '2026-04-11T11:00:00Z';
-    expect(getElapsedSeconds(past)).toBe(3600);
+  it('passes through already-padded hh:mm', () => {
+    expect(parseElapsedEntity('02:30')).toBe('02:30');
   });
 
-  it('returns 0 for a future timestamp', () => {
-    const future = '2026-04-11T13:00:00Z';
-    expect(getElapsedSeconds(future)).toBe(0);
+  it('returns --:-- for unavailable', () => {
+    expect(parseElapsedEntity('unavailable')).toBe('--:--');
   });
 
-  it('returns 0 for an invalid timestamp', () => {
-    expect(getElapsedSeconds('unavailable')).toBe(0);
+  it('returns --:-- for unknown', () => {
+    expect(parseElapsedEntity('unknown')).toBe('--:--');
+  });
+
+  it('returns --:-- for empty string', () => {
+    expect(parseElapsedEntity('')).toBe('--:--');
   });
 });
 ```
@@ -427,13 +436,19 @@ export function getRemainingSeconds(isoTimestamp: string): number | null {
 }
 
 /**
- * Returns the number of seconds elapsed since the given ISO 8601 timestamp.
- * Returns 0 if the timestamp is in the future or invalid.
+ * Normalises the elapsed time entity value (h:mm format from home-connect-hass)
+ * to padded hh:mm. Returns "--:--" for unavailable/unknown/invalid values.
+ *
+ * The entity reports values like "0:03" or "1:45" — we just pad hours to 2 digits.
  */
-export function getElapsedSeconds(isoTimestamp: string): number {
-  const start = new Date(isoTimestamp).getTime();
-  if (isNaN(start)) return 0;
-  return Math.max(0, Math.floor((Date.now() - start) / 1000));
+export function parseElapsedEntity(value: string): string {
+  if (!value || value === 'unavailable' || value === 'unknown') return '--:--';
+  const parts = value.split(':');
+  if (parts.length !== 2) return '--:--';
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  if (isNaN(h) || isNaN(m)) return '--:--';
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 ```
 
@@ -443,7 +458,7 @@ export function getElapsedSeconds(isoTimestamp: string): number {
 npm test
 ```
 
-Expected: PASS — all 8 timer tests green.
+Expected: PASS — all 11 timer tests green.
 
 - [ ] **Step 5: Commit**
 
@@ -474,12 +489,14 @@ import {
 import type { HomeAssistant, SiemensOvenCardConfig } from '../src/types';
 
 const BASE_CONFIG: SiemensOvenCardConfig = {
-  operation_state_entity: 'sensor.oven_operation_state',
-  active_program_entity: 'select.oven_active_program',
-  remaining_time_entity: 'sensor.oven_remaining_program_time',
-  cavity_temp_entity: 'sensor.oven_current_oven_cavity_temperature',
-  program_progress_entity: 'sensor.oven_program_progress',
-  door_entity: 'sensor.oven_door',
+  operation_state_entity: 'sensor.oven_operationstate',
+  active_program_entity: 'sensor.oven_active_program',
+  remaining_time_entity: 'sensor.oven_remainingprogramtime',
+  elapsed_time_entity: 'sensor.oven_elapsedprogramtime',
+  cavity_temp_entity: 'sensor.oven_currentcavitytemperature',
+  setpoint_temp_entity: 'sensor.oven_setpointtemperature',
+  program_progress_entity: 'sensor.oven_programprogress',
+  door_entity: 'binary_sensor.oven_doorstate',
 };
 
 function makeHass(states: Record<string, string>): HomeAssistant {
@@ -500,14 +517,19 @@ function makeHass(states: Record<string, string>): HomeAssistant {
 }
 
 describe('getOperationState', () => {
-  it('returns inactive when entity is inactive', () => {
-    const hass = makeHass({ 'sensor.oven_operation_state': 'inactive' });
+  it('extracts and lowercases the last segment of BSH enum', () => {
+    const hass = makeHass({ 'sensor.oven_operationstate': 'BSH.Common.EnumType.OperationState.Inactive' });
     expect(getOperationState(hass, BASE_CONFIG)).toBe('inactive');
   });
 
-  it('returns run when entity is run', () => {
-    const hass = makeHass({ 'sensor.oven_operation_state': 'run' });
+  it('returns run for BSH Run state', () => {
+    const hass = makeHass({ 'sensor.oven_operationstate': 'BSH.Common.EnumType.OperationState.Run' });
     expect(getOperationState(hass, BASE_CONFIG)).toBe('run');
+  });
+
+  it('returns pause for BSH Pause state', () => {
+    const hass = makeHass({ 'sensor.oven_operationstate': 'BSH.Common.EnumType.OperationState.Pause' });
+    expect(getOperationState(hass, BASE_CONFIG)).toBe('pause');
   });
 
   it('returns inactive when entity is missing', () => {
@@ -521,12 +543,12 @@ describe('getProgramIconPath', () => {
   const MANUAL_PATH = '/local/siemens-oven-card';
 
   it('returns the correct HACS path for a known program', () => {
-    expect(getProgramIconPath('cooking_oven_program_heating_mode_hot_air', HACS_PATH))
+    expect(getProgramIconPath('Cooking.Oven.Program.HeatingMode.HotAir', HACS_PATH))
       .toBe('/hacsfiles/siemens-oven-card/images/hot-air.png');
   });
 
   it('returns the correct manual install path for a known program', () => {
-    expect(getProgramIconPath('cooking_oven_program_heating_mode_hot_air', MANUAL_PATH))
+    expect(getProgramIconPath('Cooking.Oven.Program.HeatingMode.HotAir', MANUAL_PATH))
       .toBe('/local/siemens-oven-card/images/hot-air.png');
   });
 
@@ -537,29 +559,34 @@ describe('getProgramIconPath', () => {
   });
 
   it('returns correct path for pizza', () => {
-    expect(getProgramIconPath('cooking_oven_program_heating_mode_pizza_setting', HACS_PATH))
+    expect(getProgramIconPath('Cooking.Oven.Program.HeatingMode.PizzaSetting', HACS_PATH))
       .toBe('/hacsfiles/siemens-oven-card/images/pizza.png');
+  });
+
+  it('returns correct path for grill large area', () => {
+    expect(getProgramIconPath('Cooking.Oven.Program.HeatingMode.GrillLargeArea', HACS_PATH))
+      .toBe('/hacsfiles/siemens-oven-card/images/grill-large.png');
   });
 });
 
 describe('getProgressPercent', () => {
   it('returns numeric value when sensor reports 0–99', () => {
-    const hass = makeHass({ 'sensor.oven_program_progress': '14' });
+    const hass = makeHass({ 'sensor.oven_programprogress': '14' });
     expect(getProgressPercent(hass, BASE_CONFIG)).toBe(14);
   });
 
   it('returns null when sensor reports 100 (no timer set — meaningless)', () => {
-    const hass = makeHass({ 'sensor.oven_program_progress': '100' });
+    const hass = makeHass({ 'sensor.oven_programprogress': '100' });
     expect(getProgressPercent(hass, BASE_CONFIG)).toBeNull();
   });
 
   it('returns null when sensor is unavailable', () => {
-    const hass = makeHass({ 'sensor.oven_program_progress': 'unavailable' });
+    const hass = makeHass({ 'sensor.oven_programprogress': 'unavailable' });
     expect(getProgressPercent(hass, BASE_CONFIG)).toBeNull();
   });
 
   it('returns null when sensor is unknown', () => {
-    const hass = makeHass({ 'sensor.oven_program_progress': 'unknown' });
+    const hass = makeHass({ 'sensor.oven_programprogress': 'unknown' });
     expect(getProgressPercent(hass, BASE_CONFIG)).toBeNull();
   });
 
@@ -569,7 +596,7 @@ describe('getProgressPercent', () => {
   });
 
   it('returns 0 when sensor reports 0', () => {
-    const hass = makeHass({ 'sensor.oven_program_progress': '0' });
+    const hass = makeHass({ 'sensor.oven_programprogress': '0' });
     expect(getProgressPercent(hass, BASE_CONFIG)).toBe(0);
   });
 });
@@ -591,27 +618,27 @@ describe('showDetailsRow', () => {
 
 describe('showProgressBar', () => {
   it('returns true when progress is 0–99', () => {
-    const hass = makeHass({ 'sensor.oven_program_progress': '14' });
+    const hass = makeHass({ 'sensor.oven_programprogress': '14' });
     expect(showProgressBar(hass, BASE_CONFIG, 'run')).toBe(true);
   });
 
   it('returns false when progress is 100', () => {
-    const hass = makeHass({ 'sensor.oven_program_progress': '100' });
+    const hass = makeHass({ 'sensor.oven_programprogress': '100' });
     expect(showProgressBar(hass, BASE_CONFIG, 'run')).toBe(false);
   });
 
   it('returns false when progress is unavailable', () => {
-    const hass = makeHass({ 'sensor.oven_program_progress': 'unavailable' });
+    const hass = makeHass({ 'sensor.oven_programprogress': 'unavailable' });
     expect(showProgressBar(hass, BASE_CONFIG, 'run')).toBe(false);
   });
 
   it('returns false when operation state is inactive', () => {
-    const hass = makeHass({ 'sensor.oven_program_progress': '14' });
+    const hass = makeHass({ 'sensor.oven_programprogress': '14' });
     expect(showProgressBar(hass, BASE_CONFIG, 'inactive')).toBe(false);
   });
 
   it('returns false when operation state is finished', () => {
-    const hass = makeHass({ 'sensor.oven_program_progress': '14' });
+    const hass = makeHass({ 'sensor.oven_programprogress': '14' });
     expect(showProgressBar(hass, BASE_CONFIG, 'finished')).toBe(false);
   });
 });
@@ -635,14 +662,18 @@ const ACTIVE_STATES: OperationState[] = ['run', 'pause'];
 
 /**
  * Returns the current operation state of the oven.
+ * home-connect-hass reports full BSH enum strings, e.g.:
+ * "BSH.Common.EnumType.OperationState.Run" → we extract "Run" and lowercase it → "run"
  * Falls back to 'inactive' if the entity is missing.
  */
 export function getOperationState(
   hass: HomeAssistant,
   config: SiemensOvenCardConfig
 ): OperationState {
-  const state = hass.states[config.operation_state_entity]?.state ?? 'inactive';
-  return state as OperationState;
+  const raw = hass.states[config.operation_state_entity]?.state ?? '';
+  const parts = raw.split('.');
+  const segment = parts[parts.length - 1]?.toLowerCase() ?? '';
+  return (segment || 'inactive') as OperationState;
 }
 
 /**
@@ -721,7 +752,7 @@ git commit -m "feat: add state logic functions with tests"
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { CARD_VERSION, DEFAULT_RESOURCES_PATH, PROGRAM_LABEL_MAP } from './const';
-import { formatTime, getRemainingSeconds, getElapsedSeconds } from './timer';
+import { formatTime, getRemainingSeconds, parseElapsedEntity } from './timer';
 import {
   getOperationState,
   getProgramIconPath,
@@ -765,7 +796,9 @@ export class SiemensOvenCard extends LitElement {
       'operation_state_entity',
       'active_program_entity',
       'remaining_time_entity',
+      'elapsed_time_entity',
       'cavity_temp_entity',
+      'setpoint_temp_entity',
       'program_progress_entity',
       'door_entity',
     ];
@@ -784,13 +817,17 @@ export class SiemensOvenCard extends LitElement {
 
   /** Default config shown in the visual editor picker. */
   static getStubConfig(): SiemensOvenCardConfig {
+    // Placeholder entity IDs — user must rename to match their device serial
+    const prefix = 'siemens_hb676g5s6_68a40e6a233e';
     return {
-      operation_state_entity: 'sensor.oven_operation_state',
-      active_program_entity: 'select.oven_active_program',
-      remaining_time_entity: 'sensor.oven_remaining_program_time',
-      cavity_temp_entity: 'sensor.oven_current_oven_cavity_temperature',
-      program_progress_entity: 'sensor.oven_program_progress',
-      door_entity: 'sensor.oven_door',
+      operation_state_entity: `sensor.${prefix}_bsh_common_status_operationstate`,
+      active_program_entity: `sensor.${prefix}_active_program`,
+      remaining_time_entity: `sensor.${prefix}_bsh_common_option_remainingprogramtime`,
+      elapsed_time_entity: `sensor.${prefix}_bsh_common_option_elapsedprogramtime`,
+      cavity_temp_entity: `sensor.${prefix}_cooking_oven_status_currentcavitytemperature`,
+      setpoint_temp_entity: `sensor.${prefix}_cooking_oven_option_setpointtemperature`,
+      program_progress_entity: `sensor.${prefix}_bsh_common_option_programprogress`,
+      door_entity: `binary_sensor.${prefix}_bsh_common_status_doorstate`,
     };
   }
 
@@ -1114,25 +1151,23 @@ private _getTimerInfo(opState: OperationState): TimerInfo {
     return { display: '--:--', label: '', colorClass: 'dim' };
   }
 
-  // run or pause: try remaining time first (set when a duration/timer is active)
-  const remainingState = this.hass.states[this._config.remaining_time_entity]?.state ?? '';
-  if (remainingState && remainingState !== 'unavailable' && remainingState !== 'unknown') {
-    const remaining = getRemainingSeconds(remainingState);
-    if (remaining !== null) {
-      return {
-        display: formatTime(remaining),
-        label: opState === 'pause' ? 'paused' : 'remaining',
-        colorClass: 'green',
-      };
-    }
+  // run or pause: try remaining time first — shown when progress is 0-99 (timer active)
+  const remaining = getRemainingSeconds(
+    this.hass.states[this._config.remaining_time_entity]?.state ?? ''
+  );
+  if (remaining !== null) {
+    return {
+      display: formatTime(remaining),
+      label: opState === 'pause' ? 'paused' : 'remaining',
+      colorClass: 'green',
+    };
   }
 
-  // No timer set — fall back to elapsed time since operation_state last changed to run
-  const lastChanged =
-    this.hass.states[this._config.operation_state_entity]?.last_changed ?? '';
-  const elapsed = getElapsedSeconds(lastChanged);
+  // No timer set (progress === 100) — use elapsed time entity directly
+  // home-connect-hass reports elapsed as h:mm (e.g. "0:03")
+  const elapsedRaw = this.hass.states[this._config.elapsed_time_entity]?.state ?? '';
   return {
-    display: formatTime(elapsed),
+    display: parseElapsedEntity(elapsedRaw),
     label: opState === 'pause' ? 'paused' : 'elapsed',
     colorClass: opState === 'pause' ? 'amber' : 'green',
   };
@@ -1316,24 +1351,29 @@ git commit -m "feat: render progress bar (shown only when progress is 0-99)"
 private _renderDetails(opState: OperationState) {
   if (!showDetailsRow(opState)) return nothing;
 
+  const setpointState = this.hass.states[this._config.setpoint_temp_entity]?.state;
   const cavityState = this.hass.states[this._config.cavity_temp_entity]?.state;
   const progress = getProgressPercent(this.hass, this._config);
+  // door_entity is a binary_sensor: off=closed, on=open
   const doorState = this.hass.states[this._config.door_entity]?.state;
 
+  const setpoint =
+    setpointState && setpointState !== 'unavailable' && setpointState !== 'unknown'
+      ? setpointState
+      : null;
   const cavity =
     cavityState && cavityState !== 'unavailable' && cavityState !== 'unknown'
       ? cavityState
       : null;
-  const door =
-    doorState && doorState !== 'unavailable' && doorState !== 'unknown'
-      ? doorState
-      : null;
+  const doorLabel =
+    doorState === 'on' ? 'open' : doorState === 'off' ? 'closed' : null;
 
   return html`
     <div class="details-row">
+      ${setpoint ? html`<span class="detail-item">🎯 ${setpoint}°C</span>` : nothing}
       ${cavity ? html`<span class="detail-item">🌡 ${cavity}°C</span>` : nothing}
       ${progress !== null ? html`<span class="detail-item">▓ ${progress}%</span>` : nothing}
-      ${door ? html`<span class="detail-item">🚪 ${door}</span>` : nothing}
+      ${doorLabel ? html`<span class="detail-item">🚪 ${doorLabel}</span>` : nothing}
     </div>
   `;
 }
@@ -1414,9 +1454,11 @@ const ENTITY_FIELDS: Array<{ key: keyof SiemensOvenCardConfig; label: string }> 
   { key: 'operation_state_entity', label: 'Operation State Entity' },
   { key: 'active_program_entity', label: 'Active Program Entity' },
   { key: 'remaining_time_entity', label: 'Remaining Time Entity' },
+  { key: 'elapsed_time_entity', label: 'Elapsed Time Entity' },
   { key: 'cavity_temp_entity', label: 'Cavity Temperature Entity' },
+  { key: 'setpoint_temp_entity', label: 'Setpoint Temperature Entity' },
   { key: 'program_progress_entity', label: 'Program Progress Entity' },
-  { key: 'door_entity', label: 'Door Entity' },
+  { key: 'door_entity', label: 'Door Entity (binary_sensor)' },
 ];
 
 @customElement('siemens-oven-card-editor')
@@ -1544,11 +1586,11 @@ cp ~/workspace/lg-washer-dryer-card/config/www/7segment.woff dist/fonts/7segment
 
 - [ ] **Step 2: Remove placeholder and add real images**
 
-When PNG files are ready, copy them into `dist/images/`. Expected filenames:
+When image files are ready, copy them into `dist/images/`. Expected filenames:
 
 ```
 dist/images/oven-bg.png           (960×400px oven background)
-dist/images/hot-air.png           (128×128px)
+dist/images/hot-air.png           (128×128px, white fill, transparent bg)
 dist/images/top-bottom.png
 dist/images/hot-air-eco.png
 dist/images/top-bottom-eco.png
@@ -1560,7 +1602,11 @@ dist/images/keep-warm.png
 dist/images/preheat-ovenware.png
 dist/images/frozen.png
 dist/images/sabbath.png
+dist/images/grill-large.png
+dist/images/grill-small.png
 ```
+
+Icons can be SVG or PNG. SVG preferred — extracted from the oven manual in Inkscape with white fill and transparent background. Card applies green/amber tint via CSS filter.
 
 - [ ] **Step 3: Remove .gitkeep placeholders once images are added**
 
@@ -1627,12 +1673,15 @@ Displays the oven's current heating program, timer, and cooking progress in a pa
 
 ```yaml
 type: custom:siemens-oven-card
-operation_state_entity: sensor.oven_operation_state
-active_program_entity: select.oven_active_program
-remaining_time_entity: sensor.oven_remaining_program_time
-cavity_temp_entity: sensor.oven_current_oven_cavity_temperature
-program_progress_entity: sensor.oven_program_progress
-door_entity: sensor.oven_door
+# Rename the prefix to match your oven's device serial
+operation_state_entity: sensor.siemens_hb676g5s6_68a40e6a233e_bsh_common_status_operationstate
+active_program_entity: sensor.siemens_hb676g5s6_68a40e6a233e_active_program
+remaining_time_entity: sensor.siemens_hb676g5s6_68a40e6a233e_bsh_common_option_remainingprogramtime
+elapsed_time_entity: sensor.siemens_hb676g5s6_68a40e6a233e_bsh_common_option_elapsedprogramtime
+cavity_temp_entity: sensor.siemens_hb676g5s6_68a40e6a233e_cooking_oven_status_currentcavitytemperature
+setpoint_temp_entity: sensor.siemens_hb676g5s6_68a40e6a233e_cooking_oven_option_setpointtemperature
+program_progress_entity: sensor.siemens_hb676g5s6_68a40e6a233e_bsh_common_option_programprogress
+door_entity: binary_sensor.siemens_hb676g5s6_68a40e6a233e_bsh_common_status_doorstate
 name: Oven            # optional
 resources_path: /hacsfiles/siemens-oven-card  # default — omit for HACS installs
 ```
@@ -1721,16 +1770,17 @@ Create a GitHub release from the tag. HACS will detect the release and make it i
 **Spec coverage check:**
 - ✅ Three-zone layout (Tasks 8, 9, 10)
 - ✅ Progress bar shown only when progress 0–99 (Task 11)
-- ✅ Conditional details row: cavity temp, progress, door (Task 12)
-- ✅ 12 program icon mappings (Task 4)
+- ✅ Conditional details row: setpoint temp, cavity temp, progress, door (Task 12)
+- ✅ 14 program icon mappings including GrillLargeArea + GrillSmallArea (Task 4)
 - ✅ Timer: remaining from ISO timestamp (Task 10)
-- ✅ Timer: elapsed from `last_changed` when no timer set (Task 10)
+- ✅ Timer: elapsed from elapsed_time entity when no timer set (Task 10)
 - ✅ Progress bar hidden when `program_progress == 100` (no timer) (Task 6, 11)
-- ✅ Visual editor with 6 entity pickers + name + resources_path (Task 13)
+- ✅ Visual editor with 8 entity pickers + name + resources_path (Task 13)
 - ✅ `resources_path` for HACS vs manual install throughout (Tasks 3, 4, 7, 9, 10, 13)
 - ✅ Font injected dynamically via shadow DOM (Task 8)
 - ✅ All 7 operation states handled (Tasks 9, 10, 11, 12)
 - ✅ `setConfig` validation with clear error messages (Task 7)
 - ✅ Timer re-renders every 30s (Task 7)
-- ✅ `number.oven_setpoint_temperature` excluded (always unavailable on this model)
-- ✅ `sensor.oven_pre_heat_finished` excluded (stays `off` in all running states — unreliable)
+- ✅ BSH enum state values extracted and lowercased (Task 6 `getOperationState`)
+- ✅ Door is binary_sensor — off=closed, on=open (Task 12 `_renderDetails`)
+- ✅ `sensor.oven_pre_heat_finished` excluded (not exposed by home-connect-hass)

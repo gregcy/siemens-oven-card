@@ -153,6 +153,36 @@ export class SiemensOvenCard extends LitElement {
     };
   }
 
+  private _renderDetails(opState: OperationState) {
+    if (!showDetailsRow(opState)) return nothing;
+
+    const setpointState = this.hass.states[this._config.setpoint_temp_entity]?.state;
+    const cavityState = this.hass.states[this._config.cavity_temp_entity]?.state;
+    const progress = getProgressPercent(this.hass, this._config);
+    // door_entity is a binary_sensor: off=closed, on=open
+    const doorState = this.hass.states[this._config.door_entity]?.state;
+
+    const setpoint =
+      setpointState && setpointState !== 'unavailable' && setpointState !== 'unknown'
+        ? setpointState
+        : null;
+    const cavity =
+      cavityState && cavityState !== 'unavailable' && cavityState !== 'unknown'
+        ? cavityState
+        : null;
+    const doorLabel =
+      doorState === 'on' ? 'open' : doorState === 'off' ? 'closed' : null;
+
+    return html`
+      <div class="details-row">
+        ${setpoint ? html`<span class="detail-item">🎯 ${setpoint}°C</span>` : nothing}
+        ${cavity ? html`<span class="detail-item">🌡 ${cavity}°C</span>` : nothing}
+        ${progress !== null ? html`<span class="detail-item">▓ ${progress}%</span>` : nothing}
+        ${doorLabel ? html`<span class="detail-item">🚪 ${doorLabel}</span>` : nothing}
+      </div>
+    `;
+  }
+
   private _renderProgressBar(opState: OperationState) {
     if (!showProgressBar(this.hass, this._config, opState)) {
       return html`<div class="progress-bar-spacer"></div>`;
@@ -233,6 +263,7 @@ export class SiemensOvenCard extends LitElement {
             ${this._renderProgressBar(opState)}
           </div>
         </div>
+        ${this._renderDetails(opState)}
       </ha-card>
     `;
   }
@@ -380,6 +411,20 @@ export class SiemensOvenCard extends LitElement {
 
     .progress-bar-spacer {
       height: 16px;
+    }
+
+    .details-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 20px;
+      padding: 10px 14px;
+      background: #111;
+      border-top: 1px solid #1a1a1a;
+    }
+
+    .detail-item {
+      font-size: 11px;
+      color: #888;
     }
   `;
 }

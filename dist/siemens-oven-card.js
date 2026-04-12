@@ -237,8 +237,8 @@ const ct=t=>(e,i)=>{void 0!==i?i.addInitializer(()=>{customElements.define(t,e)}
     }
 
     .program-icon {
-      width: 56px;
-      height: 56px;
+      width: 84px;
+      height: 84px;
       flex-shrink: 0;
       image-rendering: crisp-edges;
     }
@@ -253,7 +253,7 @@ const ct=t=>(e,i)=>{void 0!==i?i.addInitializer(()=>{customElements.define(t,e)}
 
     .program-label {
       font-family: 'BoschSerif', sans-serif;
-      font-size: 15px;
+      font-size: 22px;
       color: #fff;
       line-height: 1.3;
     }

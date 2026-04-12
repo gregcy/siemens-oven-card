@@ -107,7 +107,7 @@ export class SiemensOvenCard extends LitElement {
       return html`<div class="zone-icon"></div>`;
     }
 
-    const tintClass = opState === 'pause' ? 'tint-amber' : 'tint-green';
+    const tintClass = 'tint-green';
 
     return html`
       <div class="zone-icon">
@@ -129,7 +129,7 @@ export class SiemensOvenCard extends LitElement {
       opState === 'error' ||
       opState === 'actionrequired'
     ) {
-      return { display: '--:--', label: '', colorClass: 'dim' };
+      return { display: '', label: '', colorClass: 'dim' };
     }
 
     // run or pause: try remaining time first — shown when progress is 0-99 (timer active)
@@ -154,19 +154,42 @@ export class SiemensOvenCard extends LitElement {
     };
   }
 
+  private _getStatusIconPath(): string | null {
+    const remoteState = this._config.remote_control_entity
+      ? this.hass.states[this._config.remote_control_entity]?.state
+      : undefined;
+    const connectedState = this._config.connected_entity
+      ? this.hass.states[this._config.connected_entity]?.state
+      : undefined;
+
+    if (remoteState === 'on') {
+      return `${this._resourcesPath}/images/remote-start-icon.svg`;
+    }
+    if (connectedState === 'off') {
+      return `${this._resourcesPath}/images/not-connected-icon.svg`;
+    }
+    if (connectedState === 'on') {
+      return `${this._resourcesPath}/images/connected-icon.svg`;
+    }
+    return null;
+  }
+
   private _renderTopBar(opState: OperationState) {
     void this._tick; // Reference _tick so LitElement re-renders on interval
     const timer = this._getTimerInfo(opState);
+    const statusIcon = this._getStatusIconPath();
+    const active = opState !== 'inactive';
 
     return html`
-      <div class="top-bar">
+      <div class="top-bar ${active ? 'bar-active' : ''}">
         <div class="top-bar-left">
-          <!-- icon slots — to be added -->
         </div>
         <div class="top-bar-right">
-          <span class="top-timer ${timer.colorClass}">${timer.display}</span>
-          ${timer.label
-            ? html`<span class="top-timer-label">${timer.label}</span>`
+          ${timer.display
+            ? html`<span class="top-timer ${timer.colorClass}">${timer.display}</span>`
+            : nothing}
+          ${statusIcon
+            ? html`<img class="status-icon" src="${statusIcon}" alt="status" />`
             : nothing}
         </div>
       </div>
@@ -273,7 +296,7 @@ export class SiemensOvenCard extends LitElement {
               ${this._renderZone2(opState)}
               ${this._renderSetpoint(opState)}
             </div>
-            <div class="bottom-bar">
+            <div class="bottom-bar ${opState !== 'inactive' ? 'bar-active' : ''}">
               ${this._renderProgressBar(opState)}
             </div>
           </div>
@@ -332,6 +355,9 @@ export class SiemensOvenCard extends LitElement {
       padding: 0 14px;
       height: 30px;
       flex-shrink: 0;
+    }
+
+    .top-bar.bar-active {
       border-bottom: 2px solid #009fe3;
     }
 
@@ -349,7 +375,7 @@ export class SiemensOvenCard extends LitElement {
 
     .top-timer {
       font-family: 'BoschSerif', sans-serif;
-      font-size: 15px;
+      font-size: 22px;
       letter-spacing: 0.5px;
     }
 
@@ -357,12 +383,10 @@ export class SiemensOvenCard extends LitElement {
     .top-timer.amber { color: #f4a427; }
     .top-timer.dim   { color: #555; }
 
-    .top-timer-label {
-      font-family: 'BoschSerif', sans-serif;
-      font-size: 9px;
-      color: #777;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+    .status-icon {
+      height: 18px;
+      width: auto;
+      display: block;
     }
 
     /* ── Main content row ── */
@@ -431,8 +455,11 @@ export class SiemensOvenCard extends LitElement {
       position: relative;
       height: 20px;
       flex-shrink: 0;
-      border-bottom: 2px solid #009fe3;
       overflow: hidden;
+    }
+
+    .bottom-bar.bar-active {
+      border-bottom: 2px solid #009fe3;
     }
 
     .progress-bar {

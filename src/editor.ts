@@ -11,6 +11,8 @@ const ENTITY_FIELDS: Array<{ key: keyof SiemensOvenCardConfig; label: string }> 
   { key: 'setpoint_temp_entity', label: 'Setpoint Temperature Entity' },
   { key: 'program_progress_entity', label: 'Program Progress Entity' },
   { key: 'door_entity', label: 'Door Entity (binary_sensor)' },
+  { key: 'remote_control_entity', label: 'Remote Control Entity (optional, binary_sensor)' },
+  { key: 'connected_entity', label: 'Connected Entity (optional, binary_sensor)' },
 ];
 
 @customElement('siemens-oven-card-editor')

@@ -21,6 +21,8 @@ export interface SiemensOvenCardConfig {
   program_progress_entity: string;
   door_entity: string; // binary_sensor — off=closed, on=open
   // Optional
+  remote_control_entity?: string; // binary_sensor — on=remote start allowed
+  connected_entity?: string;      // binary_sensor — on=connected
   name?: string;
   resources_path?: string; // default: '/hacsfiles/siemens-oven-card' — override for manual installs
 }

@@ -20,17 +20,11 @@ export function getRemainingSeconds(isoTimestamp: string): number | null {
 }
 
 /**
- * Normalises the elapsed time entity value (h:mm format from home-connect-hass)
- * to padded hh:mm. Returns "--:--" for unavailable/unknown/invalid values.
- *
- * The entity reports values like "0:03" or "1:45" — we just pad hours to 2 digits.
+ * Returns the number of seconds elapsed since the given ISO 8601 timestamp.
+ * Returns null if the timestamp is invalid.
  */
-export function parseElapsedEntity(value: string): string {
-  if (!value || value === 'unavailable' || value === 'unknown') return '--:--';
-  const parts = value.split(':');
-  if (parts.length !== 2) return '--:--';
-  const h = parseInt(parts[0], 10);
-  const m = parseInt(parts[1], 10);
-  if (isNaN(h) || isNaN(m)) return '--:--';
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+export function getElapsedSeconds(isoTimestamp: string): number | null {
+  const start = new Date(isoTimestamp).getTime();
+  if (isNaN(start)) return null;
+  return Math.max(0, Math.floor((Date.now() - start) / 1000));
 }

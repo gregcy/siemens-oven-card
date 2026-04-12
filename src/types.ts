@@ -15,7 +15,7 @@ export interface SiemensOvenCardConfig {
   operation_state_entity: string;
   active_program_entity: string;
   remaining_time_entity: string;
-  elapsed_time_entity: string;
+  elapsed_time_entity?: string; // no longer used — elapsed derived from operation_state last_changed
   cavity_temp_entity: string;
   setpoint_temp_entity: string;
   program_progress_entity: string;

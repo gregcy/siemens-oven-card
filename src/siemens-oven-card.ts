@@ -1,7 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { CARD_VERSION, DEFAULT_RESOURCES_PATH, PROGRAM_LABEL_MAP } from './const';
-import { formatTime, getRemainingSeconds, parseElapsedEntity } from './timer';
+import { formatTime, getRemainingSeconds, getElapsedSeconds } from './timer';
 import {
   getOperationState,
   getProgramIconPath,
@@ -46,7 +46,6 @@ export class SiemensOvenCard extends LitElement {
       'operation_state_entity',
       'active_program_entity',
       'remaining_time_entity',
-      'elapsed_time_entity',
       'cavity_temp_entity',
       'setpoint_temp_entity',
       'program_progress_entity',
@@ -144,11 +143,11 @@ export class SiemensOvenCard extends LitElement {
       };
     }
 
-    // No timer set (progress === 100) — use elapsed time entity directly
-    // home-connect-hass reports elapsed as h:mm (e.g. "0:03")
-    const elapsedRaw = this.hass.states[this._config.elapsed_time_entity]?.state ?? '';
+    // No timer set (progress === 100) — derive elapsed from operation_state last_changed
+    const opStateEntity = this.hass.states[this._config.operation_state_entity];
+    const elapsed = getElapsedSeconds(opStateEntity?.last_changed ?? '');
     return {
-      display: parseElapsedEntity(elapsedRaw),
+      display: elapsed !== null ? formatTime(elapsed) : '',
       label: opState === 'pause' ? 'paused' : 'elapsed',
       colorClass: opState === 'pause' ? 'amber' : 'green',
     };
@@ -379,14 +378,15 @@ export class SiemensOvenCard extends LitElement {
       letter-spacing: 0.5px;
     }
 
-    .top-timer.green { color: #fff; }
-    .top-timer.amber { color: #f4a427; }
+    .top-timer.green { color: #fff; filter: drop-shadow(0 0 6px rgba(0, 159, 227, 0.6)); }
+    .top-timer.amber { color: #f4a427; filter: drop-shadow(0 0 6px rgba(244, 164, 39, 0.6)); }
     .top-timer.dim   { color: #555; }
 
     .status-icon {
       height: 18px;
       width: auto;
       display: block;
+      filter: drop-shadow(0 0 6px rgba(0, 159, 227, 0.6));
     }
 
     /* ── Main content row ── */
@@ -427,11 +427,13 @@ export class SiemensOvenCard extends LitElement {
       font-size: 22px;
       color: #fff;
       line-height: 1.3;
+      filter: drop-shadow(0 0 6px rgba(0, 159, 227, 0.6));
     }
 
     .warning-icon {
       font-size: 28px;
       color: #f44;
+      filter: drop-shadow(0 0 6px rgba(255, 68, 68, 0.6));
     }
 
     .zone-setpoint {
@@ -447,6 +449,7 @@ export class SiemensOvenCard extends LitElement {
       font-size: 34px;
       color: #fff;
       letter-spacing: 0.5px;
+      filter: drop-shadow(0 0 6px rgba(0, 159, 227, 0.6));
     }
 
     /* ── Bottom bar ── */
@@ -492,6 +495,7 @@ export class SiemensOvenCard extends LitElement {
       font-family: 'BoschSerif', sans-serif;
       font-size: 12px;
       color: #aaa;
+      filter: drop-shadow(0 0 4px rgba(0, 159, 227, 0.5));
     }
   `;
 }

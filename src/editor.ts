@@ -6,7 +6,7 @@ const ENTITY_FIELDS: Array<{ key: keyof SiemensOvenCardConfig; label: string }> 
   { key: 'operation_state_entity', label: 'Operation State Entity' },
   { key: 'active_program_entity', label: 'Active Program Entity' },
   { key: 'remaining_time_entity', label: 'Remaining Time Entity' },
-  { key: 'elapsed_time_entity', label: 'Elapsed Time Entity' },
+  { key: 'elapsed_time_entity', label: 'Elapsed Time Entity (unused — kept for compatibility)' },
   { key: 'cavity_temp_entity', label: 'Cavity Temperature Entity' },
   { key: 'setpoint_temp_entity', label: 'Setpoint Temperature Entity' },
   { key: 'program_progress_entity', label: 'Program Progress Entity' },

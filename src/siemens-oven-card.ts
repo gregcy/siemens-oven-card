@@ -173,17 +173,26 @@ export class SiemensOvenCard extends LitElement {
     return null;
   }
 
+  private _isChildLockOn(): boolean {
+    if (!this._config.childlock_entity) return false;
+    return this.hass.states[this._config.childlock_entity]?.state === 'on';
+  }
+
   private _renderTopBar(opState: OperationState) {
     void this._tick; // Reference _tick so LitElement re-renders on interval
     const timer = this._getTimerInfo(opState);
     const statusIcon = this._getStatusIconPath();
     const active = opState !== 'inactive';
+    const childLock = this._isChildLockOn();
 
     return html`
       <div class="top-bar ${active ? 'bar-active' : ''}">
         <div class="top-bar-left">
         </div>
         <div class="top-bar-right">
+          ${childLock
+            ? html`<img class="status-icon" src="${this._resourcesPath}/images/childlock-icon.svg" alt="child lock" />`
+            : nothing}
           ${timer.display
             ? html`<span class="top-timer ${timer.colorClass}">${timer.display}</span>`
             : nothing}

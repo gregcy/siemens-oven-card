@@ -23,6 +23,7 @@ export interface SiemensOvenCardConfig {
   // Optional
   remote_control_entity?: string; // binary_sensor — on=remote start allowed
   connected_entity?: string;      // binary_sensor — on=connected
+  childlock_entity?: string;      // binary_sensor — on=child lock active
   name?: string;
   resources_path?: string; // default: '/hacsfiles/siemens-oven-card' — override for manual installs
 }

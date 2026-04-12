@@ -13,6 +13,7 @@ const ENTITY_FIELDS: Array<{ key: keyof SiemensOvenCardConfig; label: string }> 
   { key: 'door_entity', label: 'Door Entity (binary_sensor)' },
   { key: 'remote_control_entity', label: 'Remote Control Entity (optional, binary_sensor)' },
   { key: 'connected_entity', label: 'Connected Entity (optional, binary_sensor)' },
+  { key: 'childlock_entity', label: 'Child Lock Entity (optional, binary_sensor)' },
 ];
 
 @customElement('siemens-oven-card-editor')

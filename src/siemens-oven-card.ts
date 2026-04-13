@@ -144,12 +144,15 @@ export class SiemensOvenCard extends LitElement {
     }
 
     // No timer set (progress === 100) — use elapsed entity + interpolate seconds
-    // The entity reports h:mm (minute precision); add seconds since last_updated for accuracy
+    // The entity reports h:mm (minute precision); add seconds since last_updated for accuracy.
+    // When paused, skip interpolation so the timer freezes at the entity value.
     const elapsedEntity = this._config.elapsed_time_entity
       ? this.hass.states[this._config.elapsed_time_entity]
       : undefined;
     const baseSeconds = parseElapsedToSeconds(elapsedEntity?.state ?? '');
-    const secondsSinceUpdate = getSecondsSince(elapsedEntity?.last_updated ?? '') ?? 0;
+    const secondsSinceUpdate = opState === 'pause'
+      ? 0
+      : (getSecondsSince(elapsedEntity?.last_updated ?? '') ?? 0);
     const totalElapsed = baseSeconds !== null ? baseSeconds + secondsSinceUpdate : null;
     return {
       display: totalElapsed !== null ? formatTime(totalElapsed) : '',

@@ -37,12 +37,13 @@ export class SiemensOvenCard extends LitElement {
   private _lastTimerDisplay = '';
   // Previous operation state — used to detect pause→run transition
   private _prevOpState: OperationState | null = null;
+  // Last valid remaining seconds (timer mode) — used to estimate on resume
+  private _lastRemainingSeconds: number | null = null;
   // Elapsed entity last_updated at last capture
   private _lastElapsedUpdated: string | null = null;
   // Elapsed base seconds from entity at last capture
   private _lastElapsedSeconds: number | null = null;
-  // Set when resuming from pause — we interpolate from this timestamp
-  // until the entity provides a fresh update, avoiding stale last_updated jumps
+  // Timestamp when we resumed from pause, and the base seconds at that moment
   private _resumeTime: number | null = null;
   private _resumeBaseSeconds: number | null = null;
 
@@ -144,33 +145,49 @@ export class SiemensOvenCard extends LitElement {
       return { display: '', label: '', colorClass: 'dim' };
     }
 
-    // While paused, freeze the last known display — avoids counting against real time
-    // or reading an entity that may have reset/gone unavailable
+    // While paused, freeze the last known display
     if (opState === 'pause') {
       this._prevOpState = 'pause';
       return { display: this._lastTimerDisplay, label: 'paused', colorClass: 'amber' };
     }
 
-    // Detect resume from pause — capture our own resume timestamp so we can
-    // interpolate from it instead of the stale entity.last_updated
+    // Detect resume from pause — record timestamp and bases for both modes
     const resumingFromPause = this._prevOpState === 'pause';
     this._prevOpState = opState;
     if (resumingFromPause) {
       this._resumeTime = Date.now();
-      this._resumeBaseSeconds = this._lastElapsedSeconds;
+      this._resumeBaseSeconds = this._lastElapsedSeconds; // for elapsed mode
+      // _lastRemainingSeconds already holds the pre-pause remaining value for remaining mode
     }
 
-    // Running: try remaining time first (timer active, progress 0-99)
+    const secondsSinceResume = this._resumeTime !== null
+      ? Math.floor((Date.now() - this._resumeTime) / 1000)
+      : 0;
+
+    // ── Remaining timer (timer set, progress 0-99) ──────────────────────────
     const remaining = getRemainingSeconds(
       this.hass.states[this._config.remaining_time_entity]?.state ?? ''
     );
     if (remaining !== null) {
+      // Entity gave a fresh valid value — clear resume state
+      this._lastRemainingSeconds = remaining;
+      this._resumeTime = null;
       this._lastTimerDisplay = formatTime(remaining);
       return { display: this._lastTimerDisplay, label: 'remaining', colorClass: 'green' };
     }
+    // Entity not yet updated after resume — estimate by counting down from pre-pause value
+    if (this._resumeTime !== null && this._lastRemainingSeconds !== null) {
+      const estimated = this._lastRemainingSeconds - secondsSinceResume;
+      if (estimated > 0) {
+        this._lastTimerDisplay = formatTime(estimated);
+        return { display: this._lastTimerDisplay, label: 'remaining', colorClass: 'green' };
+      }
+      // Estimated time expired — fall through to elapsed
+      this._lastRemainingSeconds = null;
+      this._resumeTime = null;
+    }
 
-    // No timer set (progress === 100) — use elapsed entity + interpolate seconds.
-    // The entity reports h:mm (minute precision); add seconds since last_updated for accuracy.
+    // ── Elapsed timer (no timer set, progress === 100) ──────────────────────
     const elapsedEntity = this._config.elapsed_time_entity
       ? this.hass.states[this._config.elapsed_time_entity]
       : undefined;
@@ -178,11 +195,10 @@ export class SiemensOvenCard extends LitElement {
 
     let totalElapsed: number | null = null;
 
-    if (this._resumeTime !== null) {
-      // Post-resume: interpolate from our own resume timestamp to avoid stale entity.last_updated
-      const secondsSinceResume = Math.floor((Date.now() - this._resumeTime) / 1000);
-      totalElapsed = (this._resumeBaseSeconds ?? 0) + secondsSinceResume;
-      // Switch back to entity-based once the entity provides a fresh update after resume
+    if (this._resumeTime !== null && this._resumeBaseSeconds !== null) {
+      // Post-resume: count up from the pre-pause elapsed value using our own clock
+      totalElapsed = this._resumeBaseSeconds + secondsSinceResume;
+      // Switch to entity-based once entity gives a fresh update
       if (entityUpdated && entityUpdated !== this._lastElapsedUpdated) {
         const fresh = parseElapsedToSeconds(elapsedEntity?.state ?? '');
         if (fresh !== null) {
@@ -193,7 +209,7 @@ export class SiemensOvenCard extends LitElement {
         }
       }
     } else {
-      // Normal: sync entity base when it updates, then interpolate seconds since last update
+      // Normal: sync entity base when it updates, interpolate seconds in between
       if (entityUpdated !== this._lastElapsedUpdated) {
         const base = parseElapsedToSeconds(elapsedEntity?.state ?? '');
         if (base !== null) {

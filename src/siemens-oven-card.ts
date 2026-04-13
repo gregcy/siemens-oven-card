@@ -223,9 +223,9 @@ export class SiemensOvenCard extends LitElement {
       totalElapsed = this._lastElapsedSeconds !== null
         ? this._lastElapsedSeconds + secondsSinceUpdate
         : null;
-      this._lastTotalElapsedSeconds = totalElapsed;
     }
 
+    this._lastTotalElapsedSeconds = totalElapsed;
     this._lastTimerDisplay = totalElapsed !== null ? formatTime(totalElapsed) : '';
     return { display: this._lastTimerDisplay, label: 'elapsed', colorClass: 'green' };
   }

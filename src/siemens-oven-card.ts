@@ -1,7 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { CARD_VERSION, DEFAULT_RESOURCES_PATH, PROGRAM_LABEL_MAP } from './const';
-import { formatTime, getRemainingSeconds, parseElapsedToSeconds, getSecondsSince } from './timer';
+import { formatTime, isHourFormat, getRemainingSeconds, parseElapsedToSeconds, getSecondsSince } from './timer';
 import {
   getOperationState,
   getProgramIconPath,
@@ -35,6 +35,8 @@ export class SiemensOvenCard extends LitElement {
 
   // Last timer display computed while running — frozen and returned while paused
   private _lastTimerDisplay = '';
+  // Whether the last display was in hh:mm (hour) format — preserved across pause
+  private _lastHourFormat = false;
   // Previous operation state — used to detect pause→run transition
   private _prevOpState: OperationState | null = null;
   // Last valid remaining seconds (timer mode) — used to estimate on resume
@@ -150,7 +152,7 @@ export class SiemensOvenCard extends LitElement {
     // While paused, freeze the last known display
     if (opState === 'pause') {
       this._prevOpState = 'pause';
-      return { display: this._lastTimerDisplay, label: 'paused', colorClass: 'amber' };
+      return { display: this._lastTimerDisplay, label: 'paused', colorClass: 'amber', hourFormat: this._lastHourFormat };
     }
 
     // Detect resume from pause — record timestamp and bases for both modes
@@ -175,14 +177,16 @@ export class SiemensOvenCard extends LitElement {
       this._lastRemainingSeconds = remaining;
       this._resumeTime = null;
       this._lastTimerDisplay = formatTime(remaining);
-      return { display: this._lastTimerDisplay, label: 'remaining', colorClass: 'green' };
+      this._lastHourFormat = isHourFormat(remaining);
+      return { display: this._lastTimerDisplay, label: 'remaining', colorClass: 'green', hourFormat: this._lastHourFormat };
     }
     // Entity not yet updated after resume — estimate by counting down from pre-pause value
     if (this._resumeTime !== null && this._lastRemainingSeconds !== null) {
       const estimated = this._lastRemainingSeconds - secondsSinceResume;
       if (estimated > 0) {
         this._lastTimerDisplay = formatTime(estimated);
-        return { display: this._lastTimerDisplay, label: 'remaining', colorClass: 'green' };
+        this._lastHourFormat = isHourFormat(estimated);
+        return { display: this._lastTimerDisplay, label: 'remaining', colorClass: 'green', hourFormat: this._lastHourFormat };
       }
       // Estimated time expired — fall through to elapsed
       this._lastRemainingSeconds = null;
@@ -227,7 +231,8 @@ export class SiemensOvenCard extends LitElement {
 
     this._lastTotalElapsedSeconds = totalElapsed;
     this._lastTimerDisplay = totalElapsed !== null ? formatTime(totalElapsed) : '';
-    return { display: this._lastTimerDisplay, label: 'elapsed', colorClass: 'green' };
+    this._lastHourFormat = totalElapsed !== null ? isHourFormat(totalElapsed) : false;
+    return { display: this._lastTimerDisplay, label: 'elapsed', colorClass: 'green', hourFormat: this._lastHourFormat };
   }
 
   private _getStatusIconPath(): string | null {
@@ -271,7 +276,11 @@ export class SiemensOvenCard extends LitElement {
             ? html`<img class="status-icon" src="${this._resourcesPath}/images/childlock-icon.svg" alt="child lock" />`
             : nothing}
           ${timer.display
-            ? html`<span class="top-timer ${timer.colorClass}">${timer.display}</span>`
+            ? html`<span class="top-timer ${timer.colorClass}">${
+                timer.hourFormat
+                  ? html`${timer.display.slice(0, 2)}<span class="timer-unit">h</span>${timer.display.slice(2)}<span class="timer-unit">min</span>`
+                  : timer.display
+              }</span>`
             : nothing}
           ${statusIcon
             ? html`<img class="status-icon" src="${statusIcon}" alt="status" />`
@@ -467,6 +476,12 @@ export class SiemensOvenCard extends LitElement {
     .top-timer.green { color: #fff; filter: drop-shadow(0 0 6px rgba(0, 159, 227, 0.6)); }
     .top-timer.amber { color: #f4a427; filter: drop-shadow(0 0 6px rgba(244, 164, 39, 0.6)); }
     .top-timer.dim   { color: #555; }
+
+    .timer-unit {
+      font-size: 0.6em;
+      letter-spacing: 0;
+      vertical-align: baseline;
+    }
 
     .status-icon {
       height: 18px;

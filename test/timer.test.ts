@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { formatTime, getRemainingSeconds, parseElapsedToSeconds, getSecondsSince } from '../src/timer';
+import { formatTime, isHourFormat, getRemainingSeconds, parseElapsedToSeconds, getSecondsSince } from '../src/timer';
 
 describe('formatTime', () => {
   it('formats zero seconds as 00:00', () => {
@@ -18,16 +18,30 @@ describe('formatTime', () => {
     expect(formatTime(3599)).toBe('59:59');
   });
 
-  it('formats 3600 seconds (1h) as hh:mm min', () => {
-    expect(formatTime(3600)).toBe('01:00 min');
+  it('formats 3600 seconds (1h) as hh:mm', () => {
+    expect(formatTime(3600)).toBe('01:00');
   });
 
-  it('formats 5400 seconds (1h30m) as hh:mm min', () => {
-    expect(formatTime(5400)).toBe('01:30 min');
+  it('formats 5400 seconds (1h30m) as hh:mm', () => {
+    expect(formatTime(5400)).toBe('01:30');
   });
 
-  it('formats 7384 seconds (2h03m) as hh:mm min', () => {
-    expect(formatTime(7384)).toBe('02:03 min');
+  it('formats 7384 seconds (2h03m) as hh:mm', () => {
+    expect(formatTime(7384)).toBe('02:03');
+  });
+});
+
+describe('isHourFormat', () => {
+  it('returns false for 3599 seconds', () => {
+    expect(isHourFormat(3599)).toBe(false);
+  });
+
+  it('returns true for 3600 seconds', () => {
+    expect(isHourFormat(3600)).toBe(true);
+  });
+
+  it('returns true for values over one hour', () => {
+    expect(isHourFormat(7200)).toBe(true);
   });
 });
 

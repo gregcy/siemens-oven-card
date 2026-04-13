@@ -43,4 +43,6 @@ export interface TimerInfo {
   display: string;
   label: string;
   colorClass: 'green' | 'amber' | 'dim';
+  /** True when display is in hh:mm format (≥ 1 hour) — renderer adds styled 'h'/'min' units. */
+  hourFormat?: boolean;
 }

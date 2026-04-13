@@ -33,10 +33,12 @@ export class SiemensOvenCard extends LitElement {
   @state() private _config!: SiemensOvenCardConfig;
   @state() private _tick = 0;
 
-  // Tracks the last known elapsed seconds while running, so we can freeze it on pause
-  private _lastElapsedSeconds: number | null = null;
-  // The entity last_updated value when we last computed elapsed, so we can detect entity refreshes
+  // Last timer display computed while running — frozen and returned while paused
+  private _lastTimerDisplay = '';
+  // The elapsed entity last_updated when we last captured a base value
   private _lastElapsedUpdated: string | null = null;
+  // Elapsed base seconds captured from the entity on last update
+  private _lastElapsedSeconds: number | null = null;
 
   private _tickInterval?: ReturnType<typeof setInterval>;
 
@@ -136,36 +138,26 @@ export class SiemensOvenCard extends LitElement {
       return { display: '', label: '', colorClass: 'dim' };
     }
 
-    // run or pause: try remaining time first — shown when progress is 0-99 (timer active)
+    // While paused, freeze the last known display — avoids counting against real time
+    // or reading an entity that may have reset/gone unavailable
+    if (opState === 'pause') {
+      return { display: this._lastTimerDisplay, label: 'paused', colorClass: 'amber' };
+    }
+
+    // Running: try remaining time first (timer active, progress 0-99)
     const remaining = getRemainingSeconds(
       this.hass.states[this._config.remaining_time_entity]?.state ?? ''
     );
     if (remaining !== null) {
-      return {
-        display: formatTime(remaining),
-        label: opState === 'pause' ? 'paused' : 'remaining',
-        colorClass: 'green',
-      };
+      this._lastTimerDisplay = formatTime(remaining);
+      return { display: this._lastTimerDisplay, label: 'remaining', colorClass: 'green' };
     }
 
     // No timer set (progress === 100) — use elapsed entity + interpolate seconds.
-    // The entity reports h:mm (minute precision). We interpolate within the current
-    // minute using last_updated. While paused, we freeze the last known good value
-    // so the timer doesn't reset if the entity goes unavailable.
+    // The entity reports h:mm (minute precision); add seconds since last_updated for accuracy.
     const elapsedEntity = this._config.elapsed_time_entity
       ? this.hass.states[this._config.elapsed_time_entity]
       : undefined;
-
-    if (opState === 'pause') {
-      // Return the last known elapsed — don't read entity (may be unavailable/reset)
-      return {
-        display: this._lastElapsedSeconds !== null ? formatTime(this._lastElapsedSeconds) : '',
-        label: 'paused',
-        colorClass: 'amber',
-      };
-    }
-
-    // Running: if the entity has a new update, reset our interpolation base
     const entityUpdated = elapsedEntity?.last_updated ?? '';
     if (entityUpdated !== this._lastElapsedUpdated) {
       const baseSeconds = parseElapsedToSeconds(elapsedEntity?.state ?? '');
@@ -174,17 +166,12 @@ export class SiemensOvenCard extends LitElement {
         this._lastElapsedUpdated = entityUpdated;
       }
     }
-
-    // Interpolate seconds since the entity last updated (capped at 60s)
     const secondsSinceUpdate = Math.min(getSecondsSince(entityUpdated) ?? 0, 60);
     const totalElapsed = this._lastElapsedSeconds !== null
       ? this._lastElapsedSeconds + secondsSinceUpdate
       : null;
-    return {
-      display: totalElapsed !== null ? formatTime(totalElapsed) : '',
-      label: 'elapsed',
-      colorClass: 'green',
-    };
+    this._lastTimerDisplay = totalElapsed !== null ? formatTime(totalElapsed) : '';
+    return { display: this._lastTimerDisplay, label: 'elapsed', colorClass: 'green' };
   }
 
   private _getStatusIconPath(): string | null {

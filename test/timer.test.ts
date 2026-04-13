@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { formatTime, getRemainingSeconds, getElapsedSeconds } from '../src/timer';
+import { formatTime, getRemainingSeconds, parseElapsedToSeconds, getSecondsSince } from '../src/timer';
 
 describe('formatTime', () => {
   it('formats zero seconds as 00:00', () => {
@@ -52,7 +52,25 @@ describe('getRemainingSeconds', () => {
   });
 });
 
-describe('getElapsedSeconds', () => {
+describe('parseElapsedToSeconds', () => {
+  it('converts 0:03 to 180 seconds', () => {
+    expect(parseElapsedToSeconds('0:03')).toBe(180);
+  });
+
+  it('converts 1:45 to 6300 seconds', () => {
+    expect(parseElapsedToSeconds('1:45')).toBe(6300);
+  });
+
+  it('returns null for unavailable', () => {
+    expect(parseElapsedToSeconds('unavailable')).toBeNull();
+  });
+
+  it('returns null for empty string', () => {
+    expect(parseElapsedToSeconds('')).toBeNull();
+  });
+});
+
+describe('getSecondsSince', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-04-11T12:00:00Z'));
@@ -63,20 +81,14 @@ describe('getElapsedSeconds', () => {
   });
 
   it('returns seconds since a past timestamp', () => {
-    const start = '2026-04-11T11:15:00Z';
-    expect(getElapsedSeconds(start)).toBe(45 * 60);
+    expect(getSecondsSince('2026-04-11T11:15:00Z')).toBe(45 * 60);
   });
 
   it('returns 0 for a future timestamp', () => {
-    const future = '2026-04-11T12:30:00Z';
-    expect(getElapsedSeconds(future)).toBe(0);
+    expect(getSecondsSince('2026-04-11T12:30:00Z')).toBe(0);
   });
 
   it('returns null for invalid timestamp', () => {
-    expect(getElapsedSeconds('unavailable')).toBeNull();
-  });
-
-  it('returns null for empty string', () => {
-    expect(getElapsedSeconds('')).toBeNull();
+    expect(getSecondsSince('unavailable')).toBeNull();
   });
 });

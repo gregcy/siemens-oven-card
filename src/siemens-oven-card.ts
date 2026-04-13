@@ -1,7 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { CARD_VERSION, DEFAULT_RESOURCES_PATH, PROGRAM_LABEL_MAP } from './const';
-import { formatTime, getRemainingSeconds, getElapsedSeconds } from './timer';
+import { formatTime, getRemainingSeconds, parseElapsedToSeconds, getSecondsSince } from './timer';
 import {
   getOperationState,
   getProgramIconPath,
@@ -143,11 +143,16 @@ export class SiemensOvenCard extends LitElement {
       };
     }
 
-    // No timer set (progress === 100) — derive elapsed from operation_state last_changed
-    const opStateEntity = this.hass.states[this._config.operation_state_entity];
-    const elapsed = getElapsedSeconds(opStateEntity?.last_changed ?? '');
+    // No timer set (progress === 100) — use elapsed entity + interpolate seconds
+    // The entity reports h:mm (minute precision); add seconds since last_updated for accuracy
+    const elapsedEntity = this._config.elapsed_time_entity
+      ? this.hass.states[this._config.elapsed_time_entity]
+      : undefined;
+    const baseSeconds = parseElapsedToSeconds(elapsedEntity?.state ?? '');
+    const secondsSinceUpdate = getSecondsSince(elapsedEntity?.last_updated ?? '') ?? 0;
+    const totalElapsed = baseSeconds !== null ? baseSeconds + secondsSinceUpdate : null;
     return {
-      display: elapsed !== null ? formatTime(elapsed) : '',
+      display: totalElapsed !== null ? formatTime(totalElapsed) : '',
       label: opState === 'pause' ? 'paused' : 'elapsed',
       colorClass: opState === 'pause' ? 'amber' : 'green',
     };

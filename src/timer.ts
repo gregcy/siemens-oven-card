@@ -20,11 +20,25 @@ export function getRemainingSeconds(isoTimestamp: string): number | null {
 }
 
 /**
+ * Parses the elapsed time entity value (h:mm format from home-connect-hass)
+ * into total seconds. Returns null for unavailable/unknown/invalid values.
+ */
+export function parseElapsedToSeconds(value: string): number | null {
+  if (!value || value === 'unavailable' || value === 'unknown') return null;
+  const parts = value.split(':');
+  if (parts.length !== 2) return null;
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  if (isNaN(h) || isNaN(m)) return null;
+  return h * 3600 + m * 60;
+}
+
+/**
  * Returns the number of seconds elapsed since the given ISO 8601 timestamp.
  * Returns null if the timestamp is invalid.
  */
-export function getElapsedSeconds(isoTimestamp: string): number | null {
-  const start = new Date(isoTimestamp).getTime();
-  if (isNaN(start)) return null;
-  return Math.max(0, Math.floor((Date.now() - start) / 1000));
+export function getSecondsSince(isoTimestamp: string): number | null {
+  const ts = new Date(isoTimestamp).getTime();
+  if (isNaN(ts)) return null;
+  return Math.max(0, Math.floor((Date.now() - ts) / 1000));
 }

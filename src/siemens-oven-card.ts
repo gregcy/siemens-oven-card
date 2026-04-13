@@ -6,6 +6,7 @@ import {
   getOperationState,
   getProgramIconPath,
   getProgressPercent,
+  getPreheatBars,
   showDetailsRow,
 } from './state';
 import type { HomeAssistant, OperationState, SiemensOvenCardConfig, TimerInfo } from './types';
@@ -304,7 +305,25 @@ export class SiemensOvenCard extends LitElement {
 
     return html`
       <div class="zone-setpoint">
-        ${setpoint ? html`<span class="setpoint-value">${setpoint}°C</span>` : nothing}
+        <div class="setpoint-stack">
+          ${setpoint ? html`<span class="setpoint-value">${setpoint}°C</span>` : nothing}
+          ${this._renderPreheatBar(opState)}
+        </div>
+      </div>
+    `;
+  }
+
+  private _renderPreheatBar(opState: OperationState) {
+    if (opState !== 'run' && opState !== 'pause') return nothing;
+
+    const bars = getPreheatBars(this.hass, this._config);
+    if (bars === null) return nothing;
+
+    return html`
+      <div class="preheat-bars">
+        ${Array.from({ length: 10 }, (_, i) => html`
+          <div class="preheat-bar ${i < bars ? 'preheat-bar-active' : 'preheat-bar-inactive'}"></div>
+        `)}
       </div>
     `;
   }
@@ -532,6 +551,36 @@ export class SiemensOvenCard extends LitElement {
       color: #fff;
       letter-spacing: 0.5px;
       filter: drop-shadow(0 0 6px rgba(0, 159, 227, 0.6));
+    }
+
+    /* ── Preheat bar ── */
+
+    .setpoint-stack {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0;
+    }
+
+    .preheat-bars {
+      display: flex;
+      gap: 3px;
+      margin-top: 4px;
+    }
+
+    .preheat-bar {
+      width: 10px;
+      height: 6px;
+      border-radius: 2px;
+    }
+
+    .preheat-bar-active {
+      background: #009fe3;
+      filter: drop-shadow(0 0 4px rgba(0, 159, 227, 0.6));
+    }
+
+    .preheat-bar-inactive {
+      background: #1a3a4a;
     }
 
     /* ── Bottom bar ── */

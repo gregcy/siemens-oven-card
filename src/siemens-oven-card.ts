@@ -35,12 +35,16 @@ export class SiemensOvenCard extends LitElement {
 
   // Last timer display computed while running — frozen and returned while paused
   private _lastTimerDisplay = '';
-  // The elapsed entity last_updated when we last captured a base value
-  private _lastElapsedUpdated: string | null = null;
-  // Elapsed base seconds captured from the entity on last update
-  private _lastElapsedSeconds: number | null = null;
   // Previous operation state — used to detect pause→run transition
   private _prevOpState: OperationState | null = null;
+  // Elapsed entity last_updated at last capture
+  private _lastElapsedUpdated: string | null = null;
+  // Elapsed base seconds from entity at last capture
+  private _lastElapsedSeconds: number | null = null;
+  // Set when resuming from pause — we interpolate from this timestamp
+  // until the entity provides a fresh update, avoiding stale last_updated jumps
+  private _resumeTime: number | null = null;
+  private _resumeBaseSeconds: number | null = null;
 
   private _tickInterval?: ReturnType<typeof setInterval>;
 
@@ -147,12 +151,13 @@ export class SiemensOvenCard extends LitElement {
       return { display: this._lastTimerDisplay, label: 'paused', colorClass: 'amber' };
     }
 
-    // Detect resume from pause — reset elapsed interpolation base so we don't
-    // add accumulated paused seconds on the first running tick
+    // Detect resume from pause — capture our own resume timestamp so we can
+    // interpolate from it instead of the stale entity.last_updated
     const resumingFromPause = this._prevOpState === 'pause';
     this._prevOpState = opState;
     if (resumingFromPause) {
-      this._lastElapsedUpdated = null;
+      this._resumeTime = Date.now();
+      this._resumeBaseSeconds = this._lastElapsedSeconds;
     }
 
     // Running: try remaining time first (timer active, progress 0-99)
@@ -170,17 +175,38 @@ export class SiemensOvenCard extends LitElement {
       ? this.hass.states[this._config.elapsed_time_entity]
       : undefined;
     const entityUpdated = elapsedEntity?.last_updated ?? '';
-    if (entityUpdated !== this._lastElapsedUpdated) {
-      const baseSeconds = parseElapsedToSeconds(elapsedEntity?.state ?? '');
-      if (baseSeconds !== null) {
-        this._lastElapsedSeconds = baseSeconds;
-        this._lastElapsedUpdated = entityUpdated;
+
+    let totalElapsed: number | null = null;
+
+    if (this._resumeTime !== null) {
+      // Post-resume: interpolate from our own resume timestamp to avoid stale entity.last_updated
+      const secondsSinceResume = Math.floor((Date.now() - this._resumeTime) / 1000);
+      totalElapsed = (this._resumeBaseSeconds ?? 0) + secondsSinceResume;
+      // Switch back to entity-based once the entity provides a fresh update after resume
+      if (entityUpdated && entityUpdated !== this._lastElapsedUpdated) {
+        const fresh = parseElapsedToSeconds(elapsedEntity?.state ?? '');
+        if (fresh !== null) {
+          this._lastElapsedSeconds = fresh;
+          this._lastElapsedUpdated = entityUpdated;
+          this._resumeTime = null;
+          this._resumeBaseSeconds = null;
+        }
       }
+    } else {
+      // Normal: sync entity base when it updates, then interpolate seconds since last update
+      if (entityUpdated !== this._lastElapsedUpdated) {
+        const base = parseElapsedToSeconds(elapsedEntity?.state ?? '');
+        if (base !== null) {
+          this._lastElapsedSeconds = base;
+          this._lastElapsedUpdated = entityUpdated;
+        }
+      }
+      const secondsSinceUpdate = Math.min(getSecondsSince(entityUpdated) ?? 0, 60);
+      totalElapsed = this._lastElapsedSeconds !== null
+        ? this._lastElapsedSeconds + secondsSinceUpdate
+        : null;
     }
-    const secondsSinceUpdate = Math.min(getSecondsSince(entityUpdated) ?? 0, 60);
-    const totalElapsed = this._lastElapsedSeconds !== null
-      ? this._lastElapsedSeconds + secondsSinceUpdate
-      : null;
+
     this._lastTimerDisplay = totalElapsed !== null ? formatTime(totalElapsed) : '';
     return { display: this._lastTimerDisplay, label: 'elapsed', colorClass: 'green' };
   }

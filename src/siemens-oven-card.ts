@@ -46,6 +46,8 @@ export class SiemensOvenCard extends LitElement {
   // Timestamp when we resumed from pause, and the base seconds at that moment
   private _resumeTime: number | null = null;
   private _resumeBaseSeconds: number | null = null;
+  // Full computed elapsed (entity base + sub-minute interpolation) at last normal tick
+  private _lastTotalElapsedSeconds: number | null = null;
 
   private _tickInterval?: ReturnType<typeof setInterval>;
 
@@ -156,7 +158,7 @@ export class SiemensOvenCard extends LitElement {
     this._prevOpState = opState;
     if (resumingFromPause) {
       this._resumeTime = Date.now();
-      this._resumeBaseSeconds = this._lastElapsedSeconds; // for elapsed mode
+      this._resumeBaseSeconds = this._lastTotalElapsedSeconds; // for elapsed mode — includes sub-minute seconds
       // _lastRemainingSeconds already holds the pre-pause remaining value for remaining mode
     }
 
@@ -221,6 +223,7 @@ export class SiemensOvenCard extends LitElement {
       totalElapsed = this._lastElapsedSeconds !== null
         ? this._lastElapsedSeconds + secondsSinceUpdate
         : null;
+      this._lastTotalElapsedSeconds = totalElapsed;
     }
 
     this._lastTimerDisplay = totalElapsed !== null ? formatTime(totalElapsed) : '';

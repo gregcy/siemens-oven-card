@@ -1,4 +1,5 @@
 node_modules/
+dev.html
 dist-tsc/
 .DS_Store
 .superpowers/

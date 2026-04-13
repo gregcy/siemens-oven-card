@@ -275,6 +275,9 @@ export class SiemensOvenCard extends LitElement {
           ${childLock
             ? html`<img class="status-icon" src="${this._resourcesPath}/images/childlock-icon.svg" alt="child lock" />`
             : nothing}
+          ${timer.label === 'remaining'
+            ? html`<img class="status-icon" src="${this._resourcesPath}/images/cooking-time-icon.svg" alt="cooking time" />`
+            : nothing}
           ${timer.display
             ? html`<span class="top-timer ${timer.colorClass}">${
                 timer.hourFormat

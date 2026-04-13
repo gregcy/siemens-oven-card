@@ -4,7 +4,6 @@ import {
   getProgramIconPath,
   getProgressPercent,
   showDetailsRow,
-  showProgressBar,
 } from '../src/state';
 import type { HomeAssistant, SiemensOvenCardConfig } from '../src/types';
 
@@ -136,29 +135,3 @@ describe('showDetailsRow', () => {
   });
 });
 
-describe('showProgressBar', () => {
-  it('returns true when progress is 0–99', () => {
-    const hass = makeHass({ 'sensor.oven_programprogress': '14' });
-    expect(showProgressBar(hass, BASE_CONFIG, 'run')).toBe(true);
-  });
-
-  it('returns false when progress is 100', () => {
-    const hass = makeHass({ 'sensor.oven_programprogress': '100' });
-    expect(showProgressBar(hass, BASE_CONFIG, 'run')).toBe(false);
-  });
-
-  it('returns false when progress is unavailable', () => {
-    const hass = makeHass({ 'sensor.oven_programprogress': 'unavailable' });
-    expect(showProgressBar(hass, BASE_CONFIG, 'run')).toBe(false);
-  });
-
-  it('returns false when operation state is inactive', () => {
-    const hass = makeHass({ 'sensor.oven_programprogress': '14' });
-    expect(showProgressBar(hass, BASE_CONFIG, 'inactive')).toBe(false);
-  });
-
-  it('returns false when operation state is finished', () => {
-    const hass = makeHass({ 'sensor.oven_programprogress': '14' });
-    expect(showProgressBar(hass, BASE_CONFIG, 'finished')).toBe(false);
-  });
-});

@@ -53,15 +53,3 @@ export function showDetailsRow(opState: OperationState): boolean {
   return ACTIVE_STATES.includes(opState);
 }
 
-/**
- * Returns true when the progress bar should be visible.
- * Requires active state AND a meaningful progress value (0–99).
- */
-export function showProgressBar(
-  hass: HomeAssistant,
-  config: SiemensOvenCardConfig,
-  opState: OperationState
-): boolean {
-  if (!ACTIVE_STATES.includes(opState)) return false;
-  return getProgressPercent(hass, config) !== null;
-}

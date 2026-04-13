@@ -7,7 +7,6 @@ import {
   getProgramIconPath,
   getProgressPercent,
   showDetailsRow,
-  showProgressBar,
 } from './state';
 import type { HomeAssistant, OperationState, SiemensOvenCardConfig, TimerInfo } from './types';
 import './editor';
@@ -334,26 +333,6 @@ export class SiemensOvenCard extends LitElement {
     `;
   }
 
-  private _renderProgressBar(opState: OperationState) {
-    if (!showProgressBar(this.hass, this._config, opState)) {
-      return nothing;
-    }
-
-    const progress = getProgressPercent(this.hass, this._config)!;
-    const barClass = opState === 'pause' ? 'bar-run bar-paused' : 'bar-run';
-
-    return html`
-      <div
-        class="progress-bar ${barClass}"
-        style="width: ${progress}%"
-        role="progressbar"
-        aria-valuenow="${progress}"
-        aria-valuemin="0"
-        aria-valuemax="100"
-      ></div>
-    `;
-  }
-
   connectedCallback(): void {
     super.connectedCallback();
     // Refresh every second so mm:ss timer stays accurate
@@ -394,7 +373,6 @@ export class SiemensOvenCard extends LitElement {
               ${this._renderSetpoint(opState)}
             </div>
             <div class="bottom-bar ${opState !== 'inactive' ? 'bar-active' : ''}">
-              ${this._renderProgressBar(opState)}
             </div>
           </div>
         </div>
@@ -567,20 +545,6 @@ export class SiemensOvenCard extends LitElement {
 
     .bottom-bar.bar-active {
       border-bottom: 2px solid #009fe3;
-    }
-
-    .progress-bar {
-      position: absolute;
-      inset: 0;
-      transition: width 0.5s ease;
-    }
-
-    .bar-run {
-      background: rgba(0, 159, 227, 0.2);
-    }
-
-    .bar-paused {
-      opacity: 0.5;
     }
 
     /* ── Details row ── */

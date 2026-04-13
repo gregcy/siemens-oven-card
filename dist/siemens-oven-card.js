@@ -214,7 +214,7 @@ const ht=t=>(e,i)=>{void 0!==i?i.addInitializer(()=>{customElements.define(t,e)}
     .top-timer.dim   { color: #555; }
 
     .timer-unit {
-      font-size: 0.6em;
+      font-size: 0.9em;
       letter-spacing: 0;
       vertical-align: baseline;
     }

@@ -10,16 +10,24 @@ describe('formatTime', () => {
     expect(formatTime(90)).toBe('01:30');
   });
 
-  it('formats 3600 seconds as 60:00', () => {
-    expect(formatTime(3600)).toBe('60:00');
-  });
-
-  it('formats 5400 seconds as 90:00', () => {
-    expect(formatTime(5400)).toBe('90:00');
-  });
-
   it('pads single-digit minutes with leading zero', () => {
     expect(formatTime(65)).toBe('01:05');
+  });
+
+  it('formats 3599 seconds (59:59) still as mm:ss', () => {
+    expect(formatTime(3599)).toBe('59:59');
+  });
+
+  it('formats 3600 seconds (1h) as hh:mm min', () => {
+    expect(formatTime(3600)).toBe('01:00 min');
+  });
+
+  it('formats 5400 seconds (1h30m) as hh:mm min', () => {
+    expect(formatTime(5400)).toBe('01:30 min');
+  });
+
+  it('formats 7384 seconds (2h03m) as hh:mm min', () => {
+    expect(formatTime(7384)).toBe('02:03 min');
   });
 });
 

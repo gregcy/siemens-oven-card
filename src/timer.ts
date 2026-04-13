@@ -1,8 +1,14 @@
 /**
- * Formats a duration in total seconds as "mm:ss".
- * e.g. formatTime(5400) → "90:00"
+ * Formats a duration in total seconds.
+ * Under one hour: "mm:ss"  e.g. formatTime(3599) → "59:59"
+ * One hour or more: "hh:mm min"  e.g. formatTime(5400) → "01:30 min"
  */
 export function formatTime(totalSeconds: number): string {
+  if (totalSeconds >= 3600) {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')} min`;
+  }
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;

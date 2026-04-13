@@ -4,6 +4,7 @@ import {
   getProgramIconPath,
   getProgressPercent,
   showDetailsRow,
+  getPreheatBars,
 } from '../src/state';
 import type { HomeAssistant, SiemensOvenCardConfig } from '../src/types';
 
@@ -132,6 +133,87 @@ describe('showDetailsRow', () => {
     expect(showDetailsRow('error')).toBe(false);
     expect(showDetailsRow('aborting')).toBe(false);
     expect(showDetailsRow('actionrequired')).toBe(false);
+  });
+});
+
+describe('getPreheatBars', () => {
+  it('returns null when cavity temp is unavailable', () => {
+    const hass = makeHass({
+      'sensor.oven_currentcavitytemperature': 'unavailable',
+      'sensor.oven_setpointtemperature': '170',
+    });
+    expect(getPreheatBars(hass, BASE_CONFIG)).toBeNull();
+  });
+
+  it('returns null when setpoint temp is unavailable', () => {
+    const hass = makeHass({
+      'sensor.oven_currentcavitytemperature': '100',
+      'sensor.oven_setpointtemperature': 'unavailable',
+    });
+    expect(getPreheatBars(hass, BASE_CONFIG)).toBeNull();
+  });
+
+  it('returns null when cavity temp is unknown', () => {
+    const hass = makeHass({
+      'sensor.oven_currentcavitytemperature': 'unknown',
+      'sensor.oven_setpointtemperature': '170',
+    });
+    expect(getPreheatBars(hass, BASE_CONFIG)).toBeNull();
+  });
+
+  it('returns null when setpoint is 0 (avoids divide-by-zero)', () => {
+    const hass = makeHass({
+      'sensor.oven_currentcavitytemperature': '50',
+      'sensor.oven_setpointtemperature': '0',
+    });
+    expect(getPreheatBars(hass, BASE_CONFIG)).toBeNull();
+  });
+
+  it('returns null when either entity is missing', () => {
+    const hass = makeHass({});
+    expect(getPreheatBars(hass, BASE_CONFIG)).toBeNull();
+  });
+
+  it('returns 3 when actual is ~30% of setpoint', () => {
+    // 51 / 170 = 0.3 → round(3.0) = 3
+    const hass = makeHass({
+      'sensor.oven_currentcavitytemperature': '51',
+      'sensor.oven_setpointtemperature': '170',
+    });
+    expect(getPreheatBars(hass, BASE_CONFIG)).toBe(3);
+  });
+
+  it('returns 10 when actual equals setpoint', () => {
+    const hass = makeHass({
+      'sensor.oven_currentcavitytemperature': '170',
+      'sensor.oven_setpointtemperature': '170',
+    });
+    expect(getPreheatBars(hass, BASE_CONFIG)).toBe(10);
+  });
+
+  it('returns 10 when actual exceeds setpoint', () => {
+    const hass = makeHass({
+      'sensor.oven_currentcavitytemperature': '175',
+      'sensor.oven_setpointtemperature': '170',
+    });
+    expect(getPreheatBars(hass, BASE_CONFIG)).toBe(10);
+  });
+
+  it('returns 1 when actual is very low relative to setpoint', () => {
+    // 20 / 170 = 0.118 → round(1.18) = 1
+    const hass = makeHass({
+      'sensor.oven_currentcavitytemperature': '20',
+      'sensor.oven_setpointtemperature': '170',
+    });
+    expect(getPreheatBars(hass, BASE_CONFIG)).toBe(1);
+  });
+
+  it('returns 0 when actual is 0', () => {
+    const hass = makeHass({
+      'sensor.oven_currentcavitytemperature': '0',
+      'sensor.oven_setpointtemperature': '170',
+    });
+    expect(getPreheatBars(hass, BASE_CONFIG)).toBe(0);
   });
 });
 

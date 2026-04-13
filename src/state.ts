@@ -53,3 +53,32 @@ export function showDetailsRow(opState: OperationState): boolean {
   return ACTIVE_STATES.includes(opState);
 }
 
+/**
+ * Returns the number of preheat bar segments (0–10) to light up, or null if
+ * either temperature entity is unavailable/missing.
+ *
+ * Formula: Math.min(10, Math.round((actual / setpoint) * 10))
+ * Returns 10 once actual ≥ setpoint (bar stays full after reaching temperature).
+ */
+export function getPreheatBars(
+  hass: HomeAssistant,
+  config: SiemensOvenCardConfig
+): number | null {
+  const actualState = hass.states[config.cavity_temp_entity]?.state;
+  const setpointState = hass.states[config.setpoint_temp_entity]?.state;
+
+  if (
+    !actualState || actualState === 'unavailable' || actualState === 'unknown' ||
+    !setpointState || setpointState === 'unavailable' || setpointState === 'unknown'
+  ) {
+    return null;
+  }
+
+  const actual = parseInt(actualState, 10);
+  const setpoint = parseInt(setpointState, 10);
+
+  if (isNaN(actual) || isNaN(setpoint) || setpoint === 0) return null;
+
+  return Math.min(10, Math.round((actual / setpoint) * 10));
+}
+

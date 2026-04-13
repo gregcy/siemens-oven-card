@@ -314,6 +314,8 @@ export class SiemensOvenCard extends LitElement {
   }
 
   private _renderPreheatBar(opState: OperationState) {
+    // Defensive: caller already gates on active state, but keep this self-contained
+    // so it's safe to call from any future call site.
     if (opState !== 'run' && opState !== 'pause') return nothing;
 
     const bars = getPreheatBars(this.hass, this._config);

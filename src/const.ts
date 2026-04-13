@@ -18,6 +18,7 @@ export const PROGRAM_ICON_MAP: Record<string, string> = {
   'Cooking.Oven.Program.HeatingMode.KeepWarm': 'keep-warm.svg',
   'Cooking.Oven.Program.HeatingMode.PreheatOvenware': 'preheat-ovenware.svg',
   'Cooking.Oven.Program.HeatingMode.FrozenHeatupSpecial': 'frozen.svg',
+  'Cooking.Oven.Program.HeatingMode.SabbathProgramme': 'sabbath.svg',
   // Not in integration selector but correctly reported when selected on physical oven:
   'Cooking.Oven.Program.HeatingMode.GrillLargeArea': 'grill-large.svg',
   'Cooking.Oven.Program.HeatingMode.GrillSmallArea': 'grill-small.svg',
@@ -36,6 +37,7 @@ export const PROGRAM_LABEL_MAP: Record<string, string> = {
   'Cooking.Oven.Program.HeatingMode.KeepWarm': 'Keep warm',
   'Cooking.Oven.Program.HeatingMode.PreheatOvenware': 'Plate warming',
   'Cooking.Oven.Program.HeatingMode.FrozenHeatupSpecial': 'coolStart function',
+  'Cooking.Oven.Program.HeatingMode.SabbathProgramme': 'Sabbath mode',
   'Cooking.Oven.Program.HeatingMode.GrillLargeArea': 'Grill, large area',
   'Cooking.Oven.Program.HeatingMode.GrillSmallArea': 'Grill, small area',
 };

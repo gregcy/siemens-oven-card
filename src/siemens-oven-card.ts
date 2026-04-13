@@ -39,6 +39,8 @@ export class SiemensOvenCard extends LitElement {
   private _lastElapsedUpdated: string | null = null;
   // Elapsed base seconds captured from the entity on last update
   private _lastElapsedSeconds: number | null = null;
+  // Previous operation state — used to detect pause→run transition
+  private _prevOpState: OperationState | null = null;
 
   private _tickInterval?: ReturnType<typeof setInterval>;
 
@@ -141,7 +143,16 @@ export class SiemensOvenCard extends LitElement {
     // While paused, freeze the last known display — avoids counting against real time
     // or reading an entity that may have reset/gone unavailable
     if (opState === 'pause') {
+      this._prevOpState = 'pause';
       return { display: this._lastTimerDisplay, label: 'paused', colorClass: 'amber' };
+    }
+
+    // Detect resume from pause — reset elapsed interpolation base so we don't
+    // add accumulated paused seconds on the first running tick
+    const resumingFromPause = this._prevOpState === 'pause';
+    this._prevOpState = opState;
+    if (resumingFromPause) {
+      this._lastElapsedUpdated = null;
     }
 
     // Running: try remaining time first (timer active, progress 0-99)

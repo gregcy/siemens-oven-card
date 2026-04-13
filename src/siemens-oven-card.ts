@@ -33,6 +33,11 @@ export class SiemensOvenCard extends LitElement {
   @state() private _config!: SiemensOvenCardConfig;
   @state() private _tick = 0;
 
+  // Tracks the last known elapsed seconds while running, so we can freeze it on pause
+  private _lastElapsedSeconds: number | null = null;
+  // The entity last_updated value when we last computed elapsed, so we can detect entity refreshes
+  private _lastElapsedUpdated: string | null = null;
+
   private _tickInterval?: ReturnType<typeof setInterval>;
 
   /** Resolves the base URL for all assets — supports HACS and manual installs. */
@@ -143,21 +148,42 @@ export class SiemensOvenCard extends LitElement {
       };
     }
 
-    // No timer set (progress === 100) — use elapsed entity + interpolate seconds
-    // The entity reports h:mm (minute precision); add seconds since last_updated for accuracy.
-    // When paused, skip interpolation so the timer freezes at the entity value.
+    // No timer set (progress === 100) — use elapsed entity + interpolate seconds.
+    // The entity reports h:mm (minute precision). We interpolate within the current
+    // minute using last_updated. While paused, we freeze the last known good value
+    // so the timer doesn't reset if the entity goes unavailable.
     const elapsedEntity = this._config.elapsed_time_entity
       ? this.hass.states[this._config.elapsed_time_entity]
       : undefined;
-    const baseSeconds = parseElapsedToSeconds(elapsedEntity?.state ?? '');
-    const secondsSinceUpdate = opState === 'pause'
-      ? 0
-      : (getSecondsSince(elapsedEntity?.last_updated ?? '') ?? 0);
-    const totalElapsed = baseSeconds !== null ? baseSeconds + secondsSinceUpdate : null;
+
+    if (opState === 'pause') {
+      // Return the last known elapsed — don't read entity (may be unavailable/reset)
+      return {
+        display: this._lastElapsedSeconds !== null ? formatTime(this._lastElapsedSeconds) : '',
+        label: 'paused',
+        colorClass: 'amber',
+      };
+    }
+
+    // Running: if the entity has a new update, reset our interpolation base
+    const entityUpdated = elapsedEntity?.last_updated ?? '';
+    if (entityUpdated !== this._lastElapsedUpdated) {
+      const baseSeconds = parseElapsedToSeconds(elapsedEntity?.state ?? '');
+      if (baseSeconds !== null) {
+        this._lastElapsedSeconds = baseSeconds;
+        this._lastElapsedUpdated = entityUpdated;
+      }
+    }
+
+    // Interpolate seconds since the entity last updated (capped at 60s)
+    const secondsSinceUpdate = Math.min(getSecondsSince(entityUpdated) ?? 0, 60);
+    const totalElapsed = this._lastElapsedSeconds !== null
+      ? this._lastElapsedSeconds + secondsSinceUpdate
+      : null;
     return {
       display: totalElapsed !== null ? formatTime(totalElapsed) : '',
-      label: opState === 'pause' ? 'paused' : 'elapsed',
-      colorClass: opState === 'pause' ? 'amber' : 'green',
+      label: 'elapsed',
+      colorClass: 'green',
     };
   }
 

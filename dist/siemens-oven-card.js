@@ -171,7 +171,7 @@ const ct=t=>(e,i)=>{void 0!==i?i.addInitializer(()=>{customElements.define(t,e)}
       right: 0;
       top: 0;
       bottom: 0;
-      width: 55%;
+      width: 67%;
       display: flex;
       flex-direction: column;
     }

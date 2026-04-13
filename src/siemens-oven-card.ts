@@ -426,7 +426,7 @@ export class SiemensOvenCard extends LitElement {
       right: 0;
       top: 0;
       bottom: 0;
-      width: 55%;
+      width: 67%;
       display: flex;
       flex-direction: column;
     }

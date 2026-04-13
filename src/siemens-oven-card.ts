@@ -494,8 +494,8 @@ export class SiemensOvenCard extends LitElement {
     }
 
     .program-icon {
-      width: 84px;
-      height: 84px;
+      width: 76px;
+      height: 76px;
       flex-shrink: 0;
       image-rendering: crisp-edges;
     }

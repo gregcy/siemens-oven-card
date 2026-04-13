@@ -239,8 +239,8 @@ const ct=t=>(e,i)=>{void 0!==i?i.addInitializer(()=>{customElements.define(t,e)}
     }
 
     .program-icon {
-      width: 84px;
-      height: 84px;
+      width: 76px;
+      height: 76px;
       flex-shrink: 0;
       image-rendering: crisp-edges;
     }

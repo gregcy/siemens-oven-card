@@ -267,8 +267,8 @@ export class SiemensOvenCard extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
-    // Refresh every 30s so elapsed/remaining timers stay accurate
-    this._tickInterval = setInterval(() => { this._tick++; }, 30_000);
+    // Refresh every second so mm:ss timer stays accurate
+    this._tickInterval = setInterval(() => { this._tick++; }, 1_000);
   }
 
   disconnectedCallback(): void {

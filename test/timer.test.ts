@@ -6,20 +6,20 @@ describe('formatTime', () => {
     expect(formatTime(0)).toBe('00:00');
   });
 
-  it('formats 90 seconds as 00:01', () => {
-    expect(formatTime(90)).toBe('00:01');
+  it('formats 90 seconds as 01:30', () => {
+    expect(formatTime(90)).toBe('01:30');
   });
 
-  it('formats 3600 seconds as 01:00', () => {
-    expect(formatTime(3600)).toBe('01:00');
+  it('formats 3600 seconds as 60:00', () => {
+    expect(formatTime(3600)).toBe('60:00');
   });
 
-  it('formats 5400 seconds as 01:30', () => {
-    expect(formatTime(5400)).toBe('01:30');
+  it('formats 5400 seconds as 90:00', () => {
+    expect(formatTime(5400)).toBe('90:00');
   });
 
   it('pads single-digit minutes with leading zero', () => {
-    expect(formatTime(3660)).toBe('01:01');
+    expect(formatTime(65)).toBe('01:05');
   });
 });
 
